@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Обновить город</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lobster&family=Manrope:wght@600;700;800&display=swap">
+<style>
+:root{--bg:#0b1027;--card:#f7faff;--ink:#152043;--muted:#5a6688;--line:rgba(21,32,67,.14);--red:#d8352f;--red-deep:#a3211d;--pine:#1f6a52;
+  --f-script:"Lobster",Georgia,serif;--f-ui:"Manrope","Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(1200px 600px at 50% -10%,#26337a,var(--bg));color:var(--ink);font:600 16px/1.5 var(--f-ui);
+  padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+main{max-width:560px;margin:0 auto;display:grid;gap:14px}
+h1{margin:6px 0 0;font:400 38px/1.1 var(--f-script);color:#ff6a5f}
+.lead{margin:0;color:#c9d3f0;font-weight:600}
+.card{background:var(--card);border-radius:20px;padding:18px;display:grid;gap:12px;box-shadow:0 12px 34px rgba(0,0,0,.3)}
+.card h2{margin:0;font:800 17px/1.2 var(--f-ui)}
+.drop{display:grid;place-items:center;gap:6px;text-align:center;padding:26px 16px;border:2px dashed #aab6d8;border-radius:16px;background:#fff;cursor:pointer}
+.drop.over{border-color:var(--red);background:#fff4f3}
+.drop b{font-weight:800}
+.drop small{color:var(--muted);font-weight:600}
+input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.btn{height:50px;border-radius:14px;border:0;font:800 15px/1 var(--f-ui);cursor:pointer;padding:0 18px;background:var(--red);color:#fff;box-shadow:0 3px 0 var(--red-deep)}
+.btn.ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line);box-shadow:none}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.drop:focus-within{outline:3px solid #e9b649;outline-offset:2px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 8px;text-align:center}
+.stat b{display:block;font:800 26px/1.1 var(--f-ui);font-variant-numeric:tabular-nums}
+.stat span{font:700 12px/1.2 var(--f-ui);color:var(--muted)}
+.stat.new b{color:var(--pine)} .stat.left b{color:var(--red)}
+.msg{margin:0;padding:10px 12px;border-radius:12px;background:#fff;border:1px solid var(--line);font-size:14px}
+.msg.err{background:#fff1f0;border-color:#f2b8b3;color:#8a1d18}
+.names{display:flex;flex-wrap:wrap;gap:6px}
+.names span{padding:5px 10px;border-radius:999px;background:#fff;border:1px solid var(--line);font:800 13px/1.2 var(--f-ui)}
+ol{margin:0;padding-left:20px;display:grid;gap:8px;font-size:15px}
+.muted{color:var(--muted);font-size:13.5px;margin:0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Обновить город</h1>
+    <p class="lead">Перетащи сюда архив TikTok, и получишь новый список жителей. Всё считается у тебя в браузере, архив никуда не загружается.</p>
+  </div>
+
+  <section class="card">
+    <h2>1. Архив TikTok</h2>
+    <label class="drop" id="drop" for="file">
+      <b>Нажми или перетащи файл</b>
+      <small>подойдёт zip-архив целиком или файл user_data_tiktok.json</small>
+    </label>
+    <input type="file" id="file" accept=".zip,.json,application/zip,application/json">
+    <p class="msg" id="curMsg">Проверяю текущий список жителей…</p>
+    <p class="msg err" id="err" hidden></p>
+  </section>
+
+  <section class="card" id="result" hidden>
+    <h2>2. Что изменится</h2>
+    <div class="stats">
+      <div class="stat"><b id="sTotal">0</b><span>жителей всего</span></div>
+      <div class="stat new"><b id="sNew">0</b><span>новых</span></div>
+      <div class="stat left"><b id="sLeft">0</b><span>отписались</span></div>
+    </div>
+    <div class="names" id="newNames"></div>
+    <button class="btn" id="dl" type="button">Скачать followers.json</button>
+    <button class="btn ghost" id="copy" type="button">Скопировать текст</button>
+    <p class="muted" id="copyNote" hidden></p>
+  </section>
+
+  <section class="card">
+    <h2>3. Выложить на сайт</h2>
+    <ol>
+      <li>Открой свой репозиторий на github.com.</li>
+      <li>Нажми <b>Add file → Upload files</b> и перетащи скачанный <b>followers.json</b>. Он заменит старый.</li>
+      <li>Нажми <b>Commit changes</b>. Через минуту город обновится сам.</li>
+    </ol>
+    <p class="muted">Архив TikTok и файл user_data_tiktok.json на GitHub не загружай, в них есть личные данные.</p>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+let previous = [];
+let output = null;
+
+/* ---- та же логика, что в update-city.mjs ---- */
+function findFans(node){
+  if (!node || typeof node !== 'object') return null;
+  if (Array.isArray(node.FansList)) return node.FansList;
+  for (const v of Object.values(node)){ const f = findFans(v); if (f) return f; }
+  return null;
+}
+const keyOf = (name, date) => name ? 'u:' + name.toLowerCase() : 'd:' + date;
+function merge(prev, fans){
+  const incoming = fans
+    .map(f => ({ name: String(f.UserName ?? '').trim(), date: String(f.Date ?? '').trim() }))
+    .filter(f => f.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const byKey = new Map(prev.map(f => [keyOf(f.name, f.date), { ...f }]));
+  const present = new Set();
+  let nextN = prev.reduce((m, f) => Math.max(m, f.n), 0) + 1;
+  const fresh = [];
+  for (const f of incoming){
+    const k = keyOf(f.name, f.date); present.add(k);
+    const known = byKey.get(k);
+    if (known) delete known.left;
+    else { const rec = { n: nextN++, name: f.name, date: f.date }; byKey.set(k, rec); fresh.push(rec); }
+  }
+  let left = 0;
+  for (const [k, f] of byKey) if (!present.has(k)){ if (!f.left) left++; f.left = true; }
+  const followers = [...byKey.values()].sort((a, b) => a.n - b.n);
+  return { followers, fresh, left, active: followers.filter(f => !f.left).length };
+}
+
+/* ---- чтение файла ---- */
+async function readJson(file){
+  if (/\.zip$/i.test(file.name) || file.type === 'application/zip'){
+    if (!window.JSZip) throw new Error('Не загрузился модуль для zip. Распакуй архив и перетащи сюда файл user_data_tiktok.json.');
+    const zip = await JSZip.loadAsync(file);
+    const entry = Object.values(zip.files).find(e => !e.dir && /user_data.*\.json$/i.test(e.name)) || Object.values(zip.files).find(e => !e.dir && /\.json$/i.test(e.name));
+    if (!entry) throw new Error('В архиве нет JSON-файла. При запросе данных выбери формат JSON.');
+    return JSON.parse(await entry.async('string'));
+  }
+  return JSON.parse(await file.text());
+}
+function showError(t){ const e = $('err'); e.textContent = t; e.hidden = !t; }
+
+async function handle(file){
+  showError(''); $('result').hidden = true;
+  try{
+    const data = await readJson(file);
+    const fans = findFans(data);
+    if (!fans) throw new Error('В архиве не нашёлся список подписчиков (FansList). Запроси данные заново: «Профиль и настройки», формат JSON.');
+    const r = merge(previous, fans);
+    output = { updated: new Date().toISOString(), followers: r.followers };
+    $('sTotal').textContent = r.active.toLocaleString('ru-RU');
+    $('sNew').textContent = r.fresh.length; $('sLeft').textContent = r.left;
+    const box = $('newNames'); box.replaceChildren();
+    r.fresh.slice(0, 40).forEach(f => { const s = document.createElement('span'); s.textContent = '№' + f.n + ' ' + (f.name || '(скрытый)'); box.appendChild(s); });
+    if (r.fresh.length > 40){ const s = document.createElement('span'); s.textContent = 'и ещё ' + (r.fresh.length - 40); box.appendChild(s); }
+    $('result').hidden = false;
+    $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch(e){
+    showError(e instanceof SyntaxError ? 'Файл не похож на JSON из TikTok.' : e.message);
+  }
+}
+
+/* ---- события ---- */
+$('file').addEventListener('change', e => { if (e.target.files[0]) handle(e.target.files[0]); });
+const drop = $('drop');
+['dragenter','dragover'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handle(f); });
+$('dl').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'followers.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+});
+$('copy').addEventListener('click', async () => {
+  const n = $('copyNote'); n.hidden = false;
+  try { await navigator.clipboard.writeText(JSON.stringify(output, null, 2)); n.textContent = 'Скопировано. На GitHub можно открыть followers.json, нажать карандаш и вставить этот текст вместо старого.'; }
+  catch(e){ n.textContent = 'Не получилось скопировать, используй кнопку «Скачать».'; }
+});
+
+/* ---- текущий список с сайта ---- */
+(async () => {
+  try{
+    const res = await fetch('followers.json', { cache: 'no-store' });
+    const j = await res.json(); previous = Array.isArray(j) ? j : j.followers;
+    $('curMsg').textContent = `Сейчас в городе ${previous.filter(f => !f.left).length.toLocaleString('ru-RU')} жителей. Новые получат следующие номера.`;
+  } catch(e){
+    $('curMsg').textContent = 'Текущий список не загрузился. Если город уже запущен, открой эту страницу на своём сайте, а не из папки.';
+  }
+})();
+</script>
+</body>
+</html>

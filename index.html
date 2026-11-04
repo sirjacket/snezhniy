@@ -1,0 +1,1442 @@
+<title>Снежный город</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Новогодний город, где каждый подписчик — свой дом.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lobster&family=Manrope:wght@600;700;800&display=swap">
+<style>
+/* Layout: full-bleed WebGL city. Frosted "postcard glass" UI: crest top-left, clock top-right,
+   a single dock at the bottom; house details open as a residency card ("прописка") above the dock. */
+:root{
+  --glass:rgba(247,250,255,.88); --glass-2:rgba(232,239,252,.92);
+  --ink:#152043; --muted:#5a6688; --line:rgba(21,32,67,.13);
+  --red:#d8352f; --red-deep:#a3211d; --gold:#e9b649; --pine:#1f6a52;
+  --f-script:"Lobster","Georgia",serif;
+  --f-ui:"Manrope","Segoe UI",system-ui,-apple-system,sans-serif;
+  --gut-l:max(16px, env(safe-area-inset-left, 0px));
+  --gut-r:max(16px, env(safe-area-inset-right, 0px));
+  --top:calc(env(safe-area-inset-top,0px) + 12px);
+  --bot:calc(env(safe-area-inset-bottom,0px) + 12px);
+  --dock-h:62px;
+  color-scheme:dark;
+}
+html,body{height:100%;overflow:hidden;background:#0b1027;color:var(--ink)}
+body{font-family:var(--f-ui);-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.glass{background:var(--glass);backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);
+  border:1px solid rgba(255,255,255,.7);box-shadow:0 10px 30px rgba(5,10,35,.28)}
+
+/* ники над домами: ёлочная бирка на нитке */
+#labels{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+.lbl{position:absolute;left:0;top:0;will-change:transform,opacity;opacity:0;pointer-events:none;cursor:pointer;
+  display:flex;align-items:center;gap:6px;padding:4px 10px 4px 6px;border-radius:9px;white-space:nowrap;
+  font:800 12.5px/1.2 var(--f-ui);color:var(--ink);background:rgba(250,252,255,.94);box-shadow:0 3px 10px rgba(5,10,35,.35)}
+.lbl::before{content:"";width:9px;height:9px;border-radius:50%;flex:none;
+  background:radial-gradient(circle at 35% 35%,#ff8f86,var(--red) 55%,var(--red-deep));}
+.lbl::after{content:"";position:absolute;left:50%;top:100%;width:1.5px;height:9px;background:var(--gold);transform:translateX(-50%)}
+.lbl.anon{color:var(--muted);font-style:italic}
+.lbl.sel{background:var(--red);color:#fff;font-size:14px;z-index:5}
+.lbl.sel::before{background:radial-gradient(circle at 35% 35%,#fff6d8,var(--gold) 60%,#b98420)}
+
+.ui{position:fixed;inset:0;pointer-events:none;z-index:3;transition:opacity .4s}
+.ui > *{pointer-events:auto}
+body.cinema .ui{opacity:0}
+body.cinema .ui > *{pointer-events:none}
+
+/* герб города */
+.crest{position:absolute;left:var(--gut-l);top:var(--top);width:min(300px, calc(100% - 32px - 112px));
+  border-radius:20px;padding:12px 14px 12px;display:grid;gap:8px;text-align:left}
+.crest h1{margin:0;font:400 clamp(26px,7vw,32px)/1 var(--f-script);color:var(--red);letter-spacing:.005em}
+.crest .count{margin:0;font:700 13px/1.3 var(--f-ui);color:var(--muted);font-variant-numeric:tabular-nums}
+.crest .count b{color:var(--ink);font-weight:800}
+.garland{display:grid;gap:6px;padding-top:8px;border-top:1px dashed var(--line);text-align:left;width:100%;color:inherit}
+.bulbs{display:flex;justify-content:space-between;align-items:flex-start;height:16px;position:relative}
+.bulbs::before{content:"";position:absolute;left:0;right:0;top:2px;height:6px;border-top:1.5px solid #8a93ad;border-radius:50%/0 0 100% 100%}
+.bulbs i{position:relative;width:8px;height:12px;margin-top:4px;border-radius:50% 50% 45% 45%;background:#c5cbdb}
+.bulbs i.on:nth-child(4n+1){background:var(--red);box-shadow:0 0 8px #ff6a5f}
+.bulbs i.on:nth-child(4n+2){background:var(--gold);box-shadow:0 0 8px #ffd16a}
+.bulbs i.on:nth-child(4n+3){background:#2fa36f;box-shadow:0 0 8px #5ee0a0}
+.bulbs i.on:nth-child(4n){background:#3d74e0;box-shadow:0 0 8px #7aa8ff}
+.garland .next{font:700 12.5px/1.3 var(--f-ui);color:var(--muted)}
+.garland .next b{color:var(--red);font-weight:800}
+
+.clock{position:absolute;right:var(--gut-r);top:var(--top);border-radius:16px;padding:9px 12px;display:grid;gap:2px;text-align:right;min-width:96px}
+.clock .t{font:800 20px/1 var(--f-ui);font-variant-numeric:tabular-nums}
+.clock .w{font:700 11.5px/1.2 var(--f-ui);color:var(--muted)}
+
+/* док */
+.dock{position:absolute;left:50%;transform:translateX(-50%);bottom:var(--bot);
+  width:min(600px, calc(100% - 32px));height:var(--dock-h);border-radius:22px;padding:7px;display:flex;align-items:center;gap:6px}
+.search{flex:1;min-width:0;display:flex;align-items:center;height:100%;border-radius:16px;background:#fff;border:1px solid var(--line);padding-left:12px}
+.search svg{width:18px;height:18px;flex:none;color:var(--muted)}
+.search input{flex:1;min-width:0;height:100%;border:0;background:transparent;padding:0 8px;font:700 16px/1 var(--f-ui);color:var(--ink);outline:none}
+.search input::placeholder{color:#8f99b5}
+.search input::-webkit-search-cancel-button{display:none}
+.go{width:40px;height:40px;margin-right:4px;border-radius:12px;background:var(--red);color:#fff;display:grid;place-items:center;flex:none}
+.go svg{width:18px;height:18px;color:#fff}
+.go:active{transform:scale(.94)}
+.dbtn{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;color:var(--ink);flex:none}
+.dbtn svg{width:22px;height:22px}
+.dbtn:hover{background:rgba(21,32,67,.06)}
+.dbtn.on{background:var(--ink);color:#fff}
+.dbtn:active{transform:scale(.94)}
+.sep{width:1px;height:28px;background:var(--line);flex:none}
+
+.toast{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--bot) + var(--dock-h) + 10px);
+  width:min(480px, calc(100% - 32px));margin:0;padding:11px 14px;border-radius:16px;font:700 14px/1.4 var(--f-ui)}
+.hint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--bot) + var(--dock-h) + 12px);
+  padding:8px 14px;border-radius:999px;font:700 13px/1.2 var(--f-ui);white-space:nowrap;transition:opacity .6s;pointer-events:none;opacity:0}
+
+/* карточка «прописка» */
+.card{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--bot) + var(--dock-h) + 10px);
+  width:min(440px, calc(100% - 32px));border-radius:22px;overflow:hidden;display:grid}
+.strip{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px 9px 16px;background:var(--red);color:#fff}
+.strip span{font:400 20px/1 var(--f-script)}
+.strip small{font:800 10.5px/1 var(--f-ui);letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.x{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.18);color:#fff;flex:none}
+.x svg{width:16px;height:16px}
+.card-body{position:relative;padding:14px 16px 16px;display:grid;gap:11px}
+.who{padding-right:92px;min-width:0}
+.who h2{margin:0;font:800 clamp(20px,5.8vw,25px)/1.15 var(--f-ui);overflow-wrap:anywhere;letter-spacing:-.01em}
+.addr{margin:5px 0 0;font:800 15px/1.3 var(--f-ui);color:var(--pine)}
+.meta{margin:3px 0 0;font:700 13px/1.35 var(--f-ui);color:var(--muted);font-variant-numeric:tabular-nums}
+.stamp{position:absolute;right:14px;top:12px;width:84px;height:84px;border-radius:50%;border:2.5px solid var(--red);
+  display:grid;place-content:center;text-align:center;transform:rotate(-12deg);color:var(--red);
+  box-shadow:inset 0 0 0 4px rgba(255,255,255,.6), inset 0 0 0 5.5px rgba(216,53,47,.55)}
+.stamp small{font:800 8.5px/1 var(--f-ui);letter-spacing:.14em;text-transform:uppercase}
+.stamp b{font:800 22px/1.05 var(--f-ui);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stamp em{font:700 9.5px/1 var(--f-ui);font-style:normal;opacity:.85}
+.neigh{display:grid;gap:6px;padding-top:10px;border-top:1px dashed var(--line)}
+.k{font:800 10.5px/1 var(--f-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.nchips{display:flex;flex-wrap:wrap;gap:6px}
+.nchip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:999px;background:#fff;border:1px solid var(--line);
+  font:800 13px/1 var(--f-ui);max-width:100%;color:var(--ink)}
+.nchip span{color:var(--muted);font-weight:700}
+.nchip em{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note{margin:0;font:600 12.5px/1.4 var(--f-ui);color:var(--muted)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{height:46px;border-radius:14px;font:800 14.5px/1 var(--f-ui)}
+.btn.primary{background:var(--red);color:#fff;box-shadow:0 3px 0 var(--red-deep)}
+.btn.ghost{background:#fff;border:1.5px solid var(--line);color:var(--ink)}
+.btn:active{transform:translateY(1px)}
+
+/* съёмка */
+.field{display:grid;gap:8px}
+.field .row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.field label{font:800 14px/1.2 var(--f-ui)}
+.field output{font:800 16px/1 var(--f-ui);color:var(--red);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--red);height:26px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{height:34px;padding:0 12px;border-radius:11px;background:#fff;border:1px solid var(--line);font:800 13.5px/1 var(--f-ui);color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.tg{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:13px;background:#fff;border:1px solid var(--line);font:800 14px/1.2 var(--f-ui)}
+.tg input{width:20px;height:20px;accent-color:var(--red)}
+
+.modal{position:fixed;inset:0;z-index:20;background:rgba(5,7,20,.82);display:grid;place-items:center;
+  padding:calc(env(safe-area-inset-top,0px) + 16px) var(--gut-r) calc(env(safe-area-inset-bottom,0px) + 16px) var(--gut-l)}
+.modal-in{display:grid;gap:12px;justify-items:center;max-height:100%;width:100%;max-width:380px}
+.modal img{max-height:68vh;width:auto;max-width:100%;border-radius:18px;-webkit-touch-callout:default;user-select:auto}
+.modal p{margin:0;text-align:center;font:700 15px/1.4 var(--f-ui);color:#f3f6ff}
+
+.loading{position:fixed;inset:0;z-index:30;display:grid;place-content:center;gap:10px;text-align:center;background:#0b1027;transition:opacity .7s;padding:0 var(--gut-r) 0 var(--gut-l)}
+.loading h2{margin:0;font:400 40px/1 var(--f-script);color:#ff6a5f}
+.loading p{margin:0;font:700 15px/1.4 var(--f-ui);color:#b9c3e2;max-width:340px}
+.loading.done{opacity:0;pointer-events:none}
+.exitc{position:fixed;z-index:4;right:var(--gut-r);top:var(--top);width:44px;height:44px;border-radius:14px;display:grid;place-items:center;
+  color:var(--ink);opacity:0;pointer-events:none;transition:opacity .4s}
+.exitc svg{width:18px;height:18px}
+body.cinema .exitc{opacity:.4;pointer-events:auto}
+
+@media (max-width:420px){ .dbtn{width:42px;height:42px} .dock{gap:3px;padding:6px} .sep{display:none} }
+@media (max-height:620px){ .garland{display:none} }
+@media (prefers-reduced-motion:reduce){ .ui,.hint,.loading{transition:none} }
+</style>
+
+<canvas id="c" aria-label="Снежный город: каждый дом — подписчик"></canvas>
+<div id="labels"></div>
+
+<div class="ui" id="ui">
+  <div class="crest glass">
+    <h1>Снежный город</h1>
+    <p class="count" id="sub">—</p>
+    <button class="garland" id="unlock" type="button" aria-label="Показать следующее открытие">
+      <span class="bulbs" id="bulbs" aria-hidden="true"></span>
+      <span class="next" id="unlockTxt">—</span>
+    </button>
+  </div>
+
+  <div class="clock glass" aria-live="off">
+    <span class="t" id="clockT">--:--</span>
+    <span class="w" id="clockW">—</span>
+  </div>
+
+  <p class="toast glass" id="toast" hidden></p>
+  <div class="hint glass" id="hint"></div>
+
+  <section class="card glass" id="card" hidden aria-live="polite">
+    <div class="strip"><span>Прописка</span><small>Снежный город</small><button class="x" id="cClose" aria-label="Закрыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="card-body">
+      <div class="stamp" aria-hidden="true"><small>житель</small><b id="sNum">№1</b><em id="sOf">из 6</em></div>
+      <div class="who">
+        <h2 id="cName">—</h2>
+        <p class="addr" id="cAddr">—</p>
+        <p class="meta" id="cMeta">—</p>
+      </div>
+      <div class="neigh"><span class="k">Соседи</span><div class="nchips" id="cNeigh"></div></div>
+      <div class="actions">
+        <button class="btn primary" id="cStory">В сторис</button>
+        <button class="btn ghost" id="cOrbit">Облететь дом</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card glass" id="studio" hidden>
+    <div class="strip"><span>Съёмка</span><small>для роликов</small><button class="x" id="sClose" aria-label="Закрыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="card-body">
+      <div class="field">
+        <div class="row"><label for="tRange">Время в городе</label><output id="tOut">--:--</output></div>
+        <input type="range" id="tRange" min="0" max="23.99" step="0.05">
+        <div class="seg" id="tPresets">
+          <button data-h="live" aria-pressed="true">Живое</button>
+          <button data-h="8.6" aria-pressed="false">Утро</button>
+          <button data-h="12.5" aria-pressed="false">День</button>
+          <button data-h="17.2" aria-pressed="false">Закат</button>
+          <button data-h="19.1" aria-pressed="false">Вечер</button>
+          <button data-h="23" aria-pressed="false">Ночь</button>
+        </div>
+      </div>
+      <label class="tg" for="tgLabels">Ники над домами<input type="checkbox" id="tgLabels" checked></label>
+      <label class="tg" for="tgHQ">Максимальное качество<input type="checkbox" id="tgHQ"></label>
+      <button class="btn primary" id="sCinema">Облёт города</button>
+    </div>
+  </section>
+
+  <form class="dock glass" id="searchForm" autocomplete="off" role="search">
+    <label class="search" for="q">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+      <input id="q" type="search" placeholder="Найди свой дом по нику" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+      <button class="go" type="submit" aria-label="Найти"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button>
+    </label>
+    <span class="sep"></span>
+    <button class="dbtn" id="homeBtn" type="button" aria-label="К ёлке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 2.5l4.5 6.5h-2.6l3.6 5.5h-3.2l3.2 5H6.5l3.2-5H6.5L10.1 9H7.5z"/><path d="M12 19.5v2"/></svg></button>
+    <button class="dbtn" id="cineBtn" type="button" aria-label="Облёт города"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2.5"/><path d="M16 11l5-3v8l-5-3z"/></svg></button>
+    <button class="dbtn" id="studioBtn" type="button" aria-label="Съёмка и время"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></button>
+  </form>
+</div>
+
+<button class="exitc glass" id="exitCine" aria-label="Выйти из облёта"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+
+<div class="modal" id="storyModal" hidden>
+  <div class="modal-in">
+    <img id="storyImg" alt="Картинка для сторис">
+    <p>Зажми картинку и сохрани её, потом выкладывай в сторис.</p>
+    <button class="btn primary" id="storyDone" style="width:100%">Готово</button>
+  </div>
+</div>
+
+<div class="loading" id="loading"><h2>Снежный город</h2><p id="loadingTxt">Зажигаем огни…</p></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script>
+(() => {
+'use strict';
+/* ============================== настройки ============================== */
+const CITY_NAME = 'Снежный город';
+const DAY_SECONDS = 720;          // полные сутки в городе = 12 минут
+const DAY_OFFSET_H = 18.6;        // сдвиг городских часов
+const P = 38, HALF_BLOCK = 15;    // шаг квартала и половина квартала
+const SPECIAL = { '0,0':'plaza', '1,0':'rink', '-1,0':'fair' };
+const UNLOCKS = [
+  { key:'rink',    name:'Каток',            at:25,   block:[1,0] },
+  { key:'fair',    name:'Ёлочная ярмарка',  at:100,  block:[-1,0] },
+  { key:'hill',    name:'Ледяная горка',    at:500 },
+  { key:'stadium', name:'Стадион',          at:1000 },
+  { key:'palace',  name:'Ледяной дворец',   at:5000 },
+];
+const STREETS = ['Снежная','Еловая','Морозная','Пряничная','Мандариновая','Звёздная','Ледяная','Вьюжная','Санная',
+  'Гирляндная','Хрустальная','Метельная','Полярная','Северная','Оленья','Каминная','Шоколадная','Сугробная',
+  'Инейная','Совиная','Колокольная','Фонарная','Лыжная','Узорная','Свечная','Варежковая'];
+const BODY = [0xd9675f,0xe9a66a,0x7fa7d6,0x8fbf9a,0xb99ad1,0xefe3cf,0x6d86c4,0xe48aa0,0x5fa3a0,0xf0c96a];
+const ROOF = [0x6b3a45,0x3f4c75,0x4f6650,0x7d3b3b,0x3b4157,0x5a4a7a];
+const DOOR = [0x7a4632,0xb23a3a,0x2f6b55,0x3d4f8a,0x8a5a2b];
+const LIGHTS_MULTI = [[1.0,0.25,0.22],[1.0,0.78,0.25],[0.35,0.95,0.45],[0.35,0.6,1.0],[1.0,0.45,0.8]];
+const LIGHTS_WARM = [[1.0,0.82,0.5],[1.0,0.72,0.42]];
+const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+
+const isCoarse = matchMedia('(pointer: coarse)').matches;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const smooth = (a,b,v) => { const t = clamp((v-a)/(b-a),0,1); return t*t*(3-2*t); };
+const plural = (n, f) => { const a=Math.abs(n)%100, b=a%10; return f[(a>10&&a<20)?2:(b>1&&b<5)?1:(b===1)?0:2]; };
+const fmtNum = n => n.toLocaleString('ru-RU');
+function rng(seed){ let s = seed>>>0; return () => { s = (s + 0x6D2B79F5)>>>0; let t = s; t = Math.imul(t ^ t>>>15, t|1); t ^= t + Math.imul(t ^ t>>>7, t|61); return ((t ^ t>>>14)>>>0)/4294967296; }; }
+const store = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} } };
+
+/* ============================== данные ============================== */
+function normalize(list){
+  return list.map((f,i) => ({ n: f.n || i+1, name: (f.name ?? f.UserName ?? '').trim(), date: f.date ?? f.Date ?? '', left: !!f.left }))
+             .sort((x,y) => x.n - y.n);
+}
+
+/* ============================== раскладка ============================== */
+const blockCache = [];
+function blockOrder(nBlocks){
+  for (let r = blockCache.length ? blockCache.lastRing + 1 : 1; blockCache.length < nBlocks; r++){
+    const ring = [];
+    for (let x=-r; x<=r; x++) for (let z=-r; z<=r; z++){
+      if (Math.max(Math.abs(x),Math.abs(z)) !== r || SPECIAL[x+','+z]) continue;
+      ring.push([x,z,r]);
+    }
+    ring.sort((p,q) => (Math.hypot(p[0],p[1]) - Math.hypot(q[0],q[1])) || (Math.atan2(p[1],p[0]) - Math.atan2(q[1],q[0])));
+    blockCache.push(...ring); blockCache.lastRing = r;
+  }
+  return blockCache;
+}
+function lotsOfBlock(bx,bz){
+  const cx = bx*P, cz = bz*P, lots = [];
+  for (const row of [1,-1]) for (let col=0; col<3; col++){
+    lots.push({ bx, bz, x: cx + (col-1)*10, z: cz + row*7, facing: row,
+      road: row>0 ? bz : bz-1, side: row>0 ? 'S' : 'N', xi: bx*3 + col - 1 });
+  }
+  lots.sort((p,q) => Math.hypot(p.x,p.z) - Math.hypot(q.x,q.z));
+  return lots;
+}
+function streetName(road, xi){
+  const half = xi >= 0 ? 0 : 1;
+  const idx = (road >= 0 ? 2*road : -2*road - 1)*2 + half;
+  const base = STREETS[idx % STREETS.length];
+  const k = Math.floor(idx / STREETS.length);
+  return (k ? (k+1) + '-я ' : '') + base + ' улица';
+}
+function houseNumber(lot){
+  const k = lot.xi >= 0 ? lot.xi : -lot.xi - 1;
+  return 2*k + (lot.side === 'S' ? 1 : 2);
+}
+
+/* ============================== three.js ============================== */
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, powerPreference:'high-performance' });
+let hq = store.get('city.hq') === '1';
+const dprFor = () => Math.min(window.devicePixelRatio || 1, hq ? 3 : (isCoarse ? 1.6 : 2));
+renderer.setPixelRatio(dprFor());
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x141c40, 0.004);
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.5, 4000);
+
+const controls = new THREE.MapControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.09;
+controls.screenSpacePanning = false;
+controls.maxPolarAngle = 1.32; controls.minPolarAngle = 0.25;
+controls.minDistance = 9; controls.maxDistance = 220;
+controls.zoomSpeed = 0.9; controls.rotateSpeed = 0.6;
+
+/* ---------- постобработка: мягкое свечение огней ---------- */
+let composer = null, bloom = null, hdr = false;
+function setupComposer(){
+  try{
+    const gl2 = renderer.capabilities.isWebGL2;
+    const ext = n => { try { return renderer.extensions.has(n); } catch(e){ return false; } };
+    const full = gl2 && ext('EXT_color_buffer_float');
+    hdr = full || (gl2 && ext('EXT_color_buffer_half_float'));
+    const params = { format: THREE.RGBAFormat, type: hdr ? THREE.HalfFloatType : THREE.UnsignedByteType };
+    const dpr = renderer.getPixelRatio();
+    const w = Math.floor(innerWidth*dpr), h = Math.floor(innerHeight*dpr);
+    const rt = full ? new THREE.WebGLMultisampleRenderTarget(w, h, params) : new THREE.WebGLRenderTarget(w, h, params);
+    if (full) rt.samples = 4;
+    composer = new THREE.EffectComposer(renderer, rt);
+    composer.setPixelRatio(dpr);
+    composer.setSize(innerWidth, innerHeight);
+    composer.addPass(new THREE.RenderPass(scene, camera));
+    bloom = new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.8, 0.5, hdr ? 1.0 : 0.82);
+    composer.addPass(bloom);
+  } catch(e){ console.warn('bloom off', e); composer = null; }
+}
+setupComposer();
+
+/* ---------- свет ---------- */
+const hemi = new THREE.HemisphereLight(0x4a5aa0, 0x1d2238, 0.6);
+scene.add(hemi);
+const dir = new THREE.DirectionalLight(0xffffff, 0.5);
+dir.castShadow = true;
+dir.shadow.mapSize.set(hq ? 2048 : 1024, hq ? 2048 : 1024);
+Object.assign(dir.shadow.camera, { left:-75, right:75, top:75, bottom:-75, near:1, far:420 });
+dir.shadow.bias = -0.0006; dir.shadow.normalBias = 0.35;
+scene.add(dir, dir.target);
+
+/* ---------- общие точечные шейдеры ---------- */
+const pointMats = [];
+const scaleUniform = () => renderer.getDrawingBufferSize(new THREE.Vector2()).y / (2*Math.tan(THREE.MathUtils.degToRad(camera.fov)/2));
+function pointMaterial(vertex, fragment, extra = {}, opts = {}){
+  const m = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime:{value:0}, uScale:{value:scaleUniform()}, uNight:{value:1} }, extra]),
+    vertexShader: vertex, fragmentShader: fragment, fog: opts.fog !== false, transparent: !!opts.transparent,
+    depthWrite: opts.depthWrite !== false, blending: opts.blending || THREE.NormalBlending
+  });
+  pointMats.push(m); return m;
+}
+
+/* ---------- небо ---------- */
+const skyU = { uTop:{value:new THREE.Color()}, uBot:{value:new THREE.Color()}, uSun:{value:new THREE.Vector3(0,1,0)}, uSunCol:{value:new THREE.Color(1,.8,.6)}, uSunVis:{value:0} };
+const sky = new THREE.Mesh(new THREE.SphereGeometry(2600, 32, 16), new THREE.ShaderMaterial({
+  uniforms: skyU, side: THREE.BackSide, depthWrite:false, fog:false,
+  vertexShader:`varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`uniform vec3 uTop,uBot,uSun,uSunCol; uniform float uSunVis; varying vec3 vD;
+    void main(){ float h = clamp(vD.y*1.35+0.04,0.0,1.0); vec3 c = mix(uBot,uTop,pow(h,0.55));
+      float s = max(dot(normalize(vD),uSun),0.0);
+      c += uSunCol*(pow(s,10.0)*0.35 + pow(s,500.0)*1.6)*uSunVis;
+      gl_FragColor = vec4(c,1.0); }`
+}));
+sky.renderOrder = -10; scene.add(sky);
+
+const stars = (() => {
+  const n = 1400, pos = new Float32Array(n*3), ph = new Float32Array(n), sz = new Float32Array(n);
+  const r = rng(11);
+  for (let i=0;i<n;i++){
+    const th = r()*Math.PI*2, y = 0.08 + r()*0.92, rr = Math.sqrt(1-y*y);
+    pos.set([Math.cos(th)*rr*2300, y*2300, Math.sin(th)*rr*2300], i*3); ph[i] = r()*6.28; sz[i] = 1.2 + r()*r()*3.2;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3)); g.setAttribute('aPhase', new THREE.BufferAttribute(ph,1)); g.setAttribute('aSize', new THREE.BufferAttribute(sz,1));
+  const m = pointMaterial(
+    `attribute float aPhase, aSize; uniform float uTime, uNight; uniform float uPx; varying float vA;
+     void main(){ vec4 mv = modelViewMatrix*vec4(position,1.0); gl_Position = projectionMatrix*mv; gl_PointSize = aSize*uPx;
+       vA = uNight*(0.55+0.45*sin(uTime*1.7+aPhase*9.0)); }`,
+    `varying float vA; void main(){ float d = length(gl_PointCoord-0.5); if(d>0.5) discard; gl_FragColor = vec4(vec3(1.0,0.97,0.9)*1.3, vA*smoothstep(0.5,0.0,d)); }`,
+    { uPx:{value:renderer.getPixelRatio()} }, { fog:false, transparent:true, depthWrite:false });
+  const p = new THREE.Points(g, m); p.renderOrder = -9; p.frustumCulled = false; scene.add(p); return p;
+})();
+
+const aurora = (() => {
+  const group = new THREE.Group();
+  const m = new THREE.ShaderMaterial({
+    uniforms:{ uTime:{value:0}, uA:{value:0} }, transparent:true, depthWrite:false, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, fog:false,
+    vertexShader:`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:`uniform float uTime,uA; varying vec2 vUv;
+      void main(){ float x = vUv.x*14.0;
+        float w = sin(x+uTime*0.21)*0.5 + sin(x*2.3-uTime*0.33)*0.25 + sin(x*5.1+uTime*0.5)*0.12;
+        float y = vUv.y - 0.32 - w*0.12;
+        float band = smoothstep(0.0,0.06,y)*smoothstep(0.62,0.05,y);
+        float rays = 0.55 + 0.45*sin(vUv.x*180.0 + sin(x*1.3+uTime*0.4)*6.0);
+        float edge = smoothstep(0.0,0.12,vUv.x)*smoothstep(1.0,0.88,vUv.x);
+        vec3 col = mix(vec3(0.1,0.95,0.55), vec3(0.55,0.35,1.0), smoothstep(0.1,0.6,y));
+        gl_FragColor = vec4(col*band*rays*edge*uA*0.55, 1.0); }`
+  });
+  [[1.25,-0.15,620],[1.0,0.9,720]].forEach(([len,start,yy],i) => {
+    const g = new THREE.CylinderGeometry(1900, 1900, 640, 80, 1, true, start + i*0.2, len);
+    const mesh = new THREE.Mesh(g, m); mesh.position.y = yy; group.add(mesh);
+  });
+  group.renderOrder = -8; scene.add(group); return { group, m };
+})();
+
+const moon = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
+  const g = x.createRadialGradient(128,128,0,128,128,128);
+  g.addColorStop(0,'rgba(255,250,235,1)'); g.addColorStop(0.28,'rgba(255,248,230,1)'); g.addColorStop(0.31,'rgba(200,215,255,.35)'); g.addColorStop(1,'rgba(160,180,255,0)');
+  x.fillStyle = g; x.fillRect(0,0,256,256);
+  x.fillStyle = 'rgba(205,200,190,.55)'; [[105,110,14],[150,140,10],[120,160,8]].forEach(([a,b,r]) => { x.beginPath(); x.arc(a,b,r,0,7); x.fill(); });
+  const m = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), fog:false, depthWrite:false, transparent:true });
+  const s = new THREE.Sprite(m); s.scale.set(320,320,1); s.renderOrder = -7; scene.add(s); return s;
+})();
+
+/* ---------- земля ---------- */
+const groundMat = new THREE.MeshLambertMaterial({ color: 0xdfe6f3 });
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), groundMat);
+ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+
+/* ---------- горы ---------- */
+const mountainMats = { rock: new THREE.MeshLambertMaterial({ color:0x6e7aa0, flatShading:true, fog:false }), cap: new THREE.MeshLambertMaterial({ color:0xffffff, flatShading:true, fog:false }) };
+const mountains = new THREE.Group(); scene.add(mountains);
+function buildMountains(radius){
+  mountains.clear();
+  const r = rng(5);
+  for (let i=0;i<22;i++){
+    const a = i/22*Math.PI*2 + r()*0.2, d = radius + 260 + r()*420, h = 160 + r()*260, w = 170 + r()*200;
+    const seg = 6 + Math.floor(r()*3);
+    const rock = new THREE.Mesh(new THREE.ConeGeometry(w, h, seg, 1), mountainMats.rock);
+    rock.position.set(Math.cos(a)*d, h/2 - 4, Math.sin(a)*d); rock.rotation.y = r()*3;
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(w*0.36, h*0.36, seg, 1), mountainMats.cap);
+    cap.position.copy(rock.position); cap.position.y = h - h*0.18 - 4 + 0.5; cap.rotation.y = rock.rotation.y;
+    mountains.add(rock, cap);
+  }
+}
+
+/* ---------- снег ---------- */
+const snow = (() => {
+  const n = isCoarse ? 2600 : 4800, pos = new Float32Array(n*3), rnd = new Float32Array(n*3), sz = new Float32Array(n);
+  const r = rng(3);
+  for (let i=0;i<n;i++){ pos.set([r()*170, r()*110, r()*170], i*3); rnd.set([r(),r(),r()], i*3); sz[i] = 0.12 + r()*0.22; }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3)); g.setAttribute('aRand', new THREE.BufferAttribute(rnd,3)); g.setAttribute('aSize', new THREE.BufferAttribute(sz,1));
+  const m = pointMaterial(
+    `attribute vec3 aRand; attribute float aSize; uniform float uTime, uScale; uniform vec3 uCenter, uBox; varying float vA;
+     #include <fog_pars_vertex>
+     void main(){ vec3 p = position;
+       p.y -= uTime*(1.6+aRand.x*1.8);
+       p.x += sin(uTime*0.7+aRand.y*6.28)*1.6 + uTime*0.9;
+       p.z += cos(uTime*0.55+aRand.z*6.28)*1.3;
+       p = mod(p - uCenter + uBox*0.5, uBox) - uBox*0.5 + uCenter;
+       vec4 mvPosition = modelViewMatrix*vec4(p,1.0);
+       gl_Position = projectionMatrix*mvPosition;
+       gl_PointSize = aSize*uScale/max(-mvPosition.z,0.1);
+       vA = smoothstep(1.5,6.0,-mvPosition.z);
+       #include <fog_vertex>
+     }`,
+    `uniform vec3 uCol; varying float vA;
+     #include <fog_pars_fragment>
+     void main(){ float d = length(gl_PointCoord-0.5); if(d>0.5) discard;
+       gl_FragColor = vec4(uCol, vA*smoothstep(0.5,0.15,d)*0.9);
+       #include <fog_fragment>
+     }`,
+    { uCenter:{value:new THREE.Vector3()}, uBox:{value:new THREE.Vector3(170,110,170)}, uCol:{value:new THREE.Color(1,1,1)} },
+    { transparent:true, depthWrite:false });
+  const p = new THREE.Points(g, m); p.frustumCulled = false; scene.add(p); return p;
+})();
+
+/* ============================== геометрии ============================== */
+function prismGeo(){
+  const A=[-.5,0,-.5], B=[-.5,0,.5], C=[-.5,1,0], D=[.5,0,-.5], E=[.5,0,.5], F=[.5,1,0];
+  const tris = [A,B,C, D,F,E, B,E,F, B,F,C, A,C,F, A,F,D, A,D,E, A,E,B];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(tris.flat(), 3));
+  g.computeVertexNormals(); return g;
+}
+function colored(geo, hex){
+  const c = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n*3);
+  for (let i=0;i<n;i++) a.set([c.r,c.g,c.b], i*3);
+  geo.setAttribute('color', new THREE.BufferAttribute(a,3)); return geo;
+}
+function treeGeo(){
+  const parts = [
+    colored(new THREE.CylinderGeometry(0.22,0.28,1.1,6).translate(0,0.55,0), 0x5b3d2e),
+    colored(new THREE.ConeGeometry(1.6,2.0,8).translate(0,2.0,0), 0x2f5d4a),
+    colored(new THREE.ConeGeometry(1.25,1.7,8).translate(0,3.0,0), 0x336a52),
+    colored(new THREE.ConeGeometry(0.85,1.4,8).translate(0,3.9,0), 0x3a7558),
+    colored(new THREE.ConeGeometry(0.9,0.9,8).translate(0,2.55,0), 0xf1f5fc),
+    colored(new THREE.ConeGeometry(0.7,0.75,8).translate(0,3.475,0), 0xf1f5fc),
+    colored(new THREE.ConeGeometry(0.46,0.56,8).translate(0,4.33,0), 0xf6f9ff),
+  ];
+  return THREE.BufferGeometryUtils.mergeBufferGeometries(parts);
+}
+const GEO = {
+  box: new THREE.BoxGeometry(1,1,1).translate(0,0.5,0),
+  cbox: new THREE.BoxGeometry(1,1,1),
+  prism: prismGeo(),
+  tree: treeGeo(),
+  bank: new THREE.CylinderGeometry(1,1,1,10,1).rotateZ(Math.PI/2),
+  pole: new THREE.CylinderGeometry(0.11,0.15,1,6).translate(0,0.5,0),
+  bulb: new THREE.SphereGeometry(1, 10, 8),
+  flat: new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2),
+};
+function radialTex(inner, outer){
+  const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+  const g = x.createRadialGradient(64,64,0,64,64,64); g.addColorStop(0,inner); g.addColorStop(1,outer);
+  x.fillStyle = g; x.fillRect(0,0,128,128); return new THREE.CanvasTexture(c);
+}
+const roadTex = (() => {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 128; const x = c.getContext('2d');
+  x.fillStyle = '#b3bdd1'; x.fillRect(0,0,128,128);
+  const r = rng(9);
+  for (const y0 of [30, 82]){ x.fillStyle = '#939db5'; x.fillRect(0, y0, 128, 16); }
+  for (let i=0;i<900;i++){ x.fillStyle = r()<0.5 ? 'rgba(255,255,255,.18)' : 'rgba(80,90,120,.10)'; x.fillRect(r()*128, r()*128, 2+r()*4, 1+r()*2); }
+  const g = x.createLinearGradient(0,0,0,128); g.addColorStop(0,'rgba(230,236,247,.9)'); g.addColorStop(0.1,'rgba(230,236,247,0)'); g.addColorStop(0.9,'rgba(230,236,247,0)'); g.addColorStop(1,'rgba(230,236,247,.9)');
+  x.fillStyle = g; x.fillRect(0,0,128,128);
+  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; t.anisotropy = 4; return t;
+})();
+
+/* ---------- материалы ---------- */
+const MAT = {
+  body: new THREE.MeshLambertMaterial({ color:0xffffff }),
+  roof: new THREE.MeshLambertMaterial({ color:0xffffff }),
+  snow: new THREE.MeshLambertMaterial({ color:0xf3f7ff }),
+  door: new THREE.MeshLambertMaterial({ color:0xffffff }),
+  chim: new THREE.MeshLambertMaterial({ color:0x8a4b3e }),
+  tree: new THREE.MeshLambertMaterial({ vertexColors:true }),
+  bank: new THREE.MeshLambertMaterial({ color:0xf1f5fd }),
+  pole: new THREE.MeshLambertMaterial({ color:0x2c3350 }),
+  bulb: new THREE.MeshBasicMaterial({ color:0xffffff }),
+  path: new THREE.MeshLambertMaterial({ color:0xc9d1e1 }),
+  road: new THREE.MeshLambertMaterial({ map: roadTex, polygonOffset:true, polygonOffsetFactor:-1, polygonOffsetUnits:-1 }),
+  pool: new THREE.MeshBasicMaterial({ map: radialTex('rgba(255,190,110,1)','rgba(255,150,60,0)'), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, color:0x000000 }),
+  paving: new THREE.MeshLambertMaterial({ color:0xcdd4e4, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2 }),
+  paving2: new THREE.MeshLambertMaterial({ color:0xbac3d8, polygonOffset:true, polygonOffsetFactor:-3, polygonOffsetUnits:-3 }),
+  wood: new THREE.MeshLambertMaterial({ color:0x8a5a3c }),
+  dark: new THREE.MeshLambertMaterial({ color:0x2a2f45 }),
+  white: new THREE.MeshLambertMaterial({ color:0xf4f7fd }),
+  carrot: new THREE.MeshLambertMaterial({ color:0xff7a2a }),
+  ice: new THREE.MeshPhongMaterial({ color:0xbfe2f3, specular:0xffffff, shininess:90, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2 }),
+  star: new THREE.MeshBasicMaterial({ color:0xffd75a }),
+  ring: new THREE.MeshBasicMaterial({ color:0xff8a3d, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }),
+};
+const dayLitMats = []; // таблички: подсвечены всегда, но днём ярче
+
+const windowMat = new THREE.ShaderMaterial({
+  uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uNight:{value:1}, uLate:{value:0}, uGlass:{value:new THREE.Color(0.38,0.5,0.68)}, uFrame:{value:new THREE.Color(0.92,0.9,0.86)} }]),
+  fog:true,
+  vertexShader:`uniform float uNight, uLate; varying vec2 vUv; varying float vLit, vWarm;
+    #include <fog_pars_vertex>
+    void main(){ vUv = uv; vec3 ic = vec3(0.5);
+      #ifdef USE_INSTANCING_COLOR
+        ic = instanceColor;
+      #endif
+      vWarm = ic.g;
+      vLit = clamp((uNight - uLate*ic.b - ic.r)*6.0, 0.0, 1.0);
+      vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position,1.0);
+      gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
+    }`,
+  fragmentShader:`uniform vec3 uGlass, uFrame; varying vec2 vUv; varying float vLit, vWarm;
+    #include <fog_pars_fragment>
+    void main(){
+      float bx = min(min(vUv.x,1.0-vUv.x), min(vUv.y,1.0-vUv.y));
+      float fr = step(bx,0.09) + step(abs(vUv.x-0.5),0.035) + step(abs(vUv.y-0.5),0.03);
+      vec3 lit = mix(vec3(2.3,1.45,0.55), vec3(2.0,1.65,1.05), vWarm) * (0.85 + 0.3*vUv.y);
+      vec3 glass = mix(uGlass*(0.8+0.35*vUv.y), lit, vLit);
+      gl_FragColor = vec4(fr > 0.5 ? uFrame : glass, 1.0);
+      #include <fog_fragment>
+    }`
+});
+
+const garlandMat = pointMaterial(
+  `attribute vec3 aColor; attribute float aPhase, aSize; uniform float uTime, uNight, uScale; varying vec3 vC; varying float vB;
+   #include <fog_pars_vertex>
+   void main(){ vec4 mvPosition = modelViewMatrix*vec4(position,1.0); gl_Position = projectionMatrix*mvPosition;
+     gl_PointSize = aSize*uScale/max(-mvPosition.z,0.1);
+     float tw = 0.62 + 0.38*sin(uTime*(1.4+aPhase*1.6) + aPhase*40.0);
+     vB = mix(0.75, 2.6, uNight)*tw; vC = aColor;
+     #include <fog_vertex>
+   }`,
+  `varying vec3 vC; varying float vB;
+   #include <fog_pars_fragment>
+   void main(){ float d = length(gl_PointCoord-0.5); if(d>0.5) discard;
+     gl_FragColor = vec4(vC*vB*(0.7+0.6*smoothstep(0.5,0.0,d)), 1.0);
+     #include <fog_fragment>
+   }`);
+
+const smokeMat = pointMaterial(
+  `attribute float aPhase; uniform float uTime, uScale; varying float vA;
+   #include <fog_pars_vertex>
+   void main(){ float age = fract(uTime*0.09 + aPhase);
+     vec3 p = position + vec3(sin(uTime*0.8+aPhase*20.0)*0.5*age + age*2.4, age*8.0, age*1.2);
+     vec4 mvPosition = modelViewMatrix*vec4(p,1.0); gl_Position = projectionMatrix*mvPosition;
+     gl_PointSize = (0.7 + age*2.6)*uScale/max(-mvPosition.z,0.1);
+     vA = smoothstep(0.0,0.12,age)*(1.0-age)*0.55;
+     #include <fog_vertex>
+   }`,
+  `uniform vec3 uCol; varying float vA;
+   #include <fog_pars_fragment>
+   void main(){ float d = length(gl_PointCoord-0.5); if(d>0.5) discard;
+     gl_FragColor = vec4(uCol, vA*smoothstep(0.5,0.0,d));
+     #include <fog_fragment>
+   }`,
+  { uCol:{value:new THREE.Color(0.85,0.88,0.95)} }, { transparent:true, depthWrite:false });
+
+/* ============================== таблички-доски ============================== */
+let fontsReady = false;
+function boardCanvas(w, h, draw){
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); draw(x, w, h);
+  const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
+}
+function roundRect(x, X, Y, W, H, R){ x.beginPath(); x.moveTo(X+R,Y); x.arcTo(X+W,Y,X+W,Y+H,R); x.arcTo(X+W,Y+H,X,Y+H,R); x.arcTo(X,Y+H,X,Y,R); x.arcTo(X,Y,X+W,Y,R); x.closePath(); }
+function fitText(x, text, maxW, size, weight, family){
+  let s = size; do { x.font = `${weight} ${s}px ${family}`; s -= 2; } while (x.measureText(text).width > maxW && s > 10);
+}
+function makeSign(title, sub, pos, rotY){
+  const g = new THREE.Group();
+  const tex = boardCanvas(512, 224, (x,w,h) => {
+    roundRect(x, 6, 6, w-12, h-12, 26); x.fillStyle = '#fff6e8'; x.fill(); x.lineWidth = 10; x.strokeStyle = '#2a1a14'; x.stroke();
+    x.fillStyle = '#d8352f'; x.fillRect(30, 26, w-60, 10);
+    x.fillStyle = '#d8352f'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    fitText(x, title, w-70, 70, 400, 'Lobster, Georgia, serif'); x.fillText(title, w/2, sub ? 96 : 118);
+    if (sub){ x.fillStyle = '#3a3550'; fitText(x, sub, w-70, 32, 800, 'Manrope, Arial, sans-serif'); x.fillText(sub, w/2, 166); }
+  });
+  const m = new THREE.MeshBasicMaterial({ map: tex }); dayLitMats.push(m);
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 2.8), m); board.position.y = 3.6;
+  const back = new THREE.Mesh(new THREE.BoxGeometry(6.6, 3.0, 0.22), MAT.wood); back.position.set(0, 3.6, -0.13);
+  const p1 = new THREE.Mesh(GEO.box, MAT.wood); p1.scale.set(0.28, 3.6, 0.28); p1.position.set(-2.6, 0, -0.2);
+  const p2 = p1.clone(); p2.position.x = 2.6;
+  [back,p1,p2].forEach(o => o.castShadow = true);
+  g.add(board, back, p1, p2); g.position.copy(pos); g.rotation.y = rotY; return g;
+}
+
+/* ============================== сборка города ============================== */
+const city = new THREE.Group(); scene.add(city);
+let houses = [], total = 0, R = 1, cityHalf = 60, neighborMap = new Map();
+let bodyMesh = null, roofMesh = null, snowMesh = null;
+const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpS = new THREE.Vector3(), tmpP = new THREE.Vector3(), tmpC = new THREE.Color();
+const Q0 = new THREE.Quaternion(), Q90 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI/2);
+
+function instanced(geo, mat, items, opts = {}){
+  if (!items.length) return null;
+  const m = new THREE.InstancedMesh(geo, mat, items.length);
+  items.forEach((it, i) => {
+    tmpP.set(it.p[0], it.p[1], it.p[2]); tmpS.set(it.s[0], it.s[1], it.s[2]);
+    tmpM.compose(tmpP, it.q || Q0, tmpS); m.setMatrixAt(i, tmpM);
+    if (it.c !== undefined){ if (Array.isArray(it.c)) tmpC.setRGB(it.c[0],it.c[1],it.c[2]); else tmpC.set(it.c); m.setColorAt(i, tmpC); }
+  });
+  m.instanceMatrix.needsUpdate = true;
+  if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  m.castShadow = !!opts.cast; m.receiveShadow = !!opts.receive;
+  city.add(m); return m;
+}
+function pointsFrom(arr, mat, attrs){
+  if (!arr.pos.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(arr.pos, 3));
+  for (const [k, size] of attrs) g.setAttribute(k, new THREE.Float32BufferAttribute(arr[k], size));
+  const p = new THREE.Points(g, mat); p.frustumCulled = false; city.add(p); return p;
+}
+
+function buildCity(list){
+  // очистка
+  for (const o of [...city.children]){ city.remove(o); o.traverse(n => { if (n.geometry && !Object.values(GEO).includes(n.geometry)) n.geometry.dispose(); if (n.isInstancedMesh) n.dispose?.(); }); }
+  dayLitMats.length = 0;
+  houses = []; neighborMap = new Map();
+  const active = list.filter(f => !f.left);
+  total = active.length;
+  const N = list.length;
+  const nBlocks = Math.max(1, Math.ceil(N/6));
+  const order = blockOrder(nBlocks);
+  const used = order.slice(0, nBlocks);
+  R = Math.max(2, ...used.map(b => b[2]));
+  cityHalf = (R + 0.5)*P;
+
+  const A = { body:[], roof:[], snow:[], cap:[], door:[], chim:[], win:[], tree:[], bank:[], pole:[], bulb:[], pool:[], path:[] };
+  const gar = { pos:[], aColor:[], aPhase:[], aSize:[] };
+  const smk = { pos:[], aPhase:[] };
+  const gr = rng(4242);
+  const addLight = (x,y,z,col,size,phase) => { gar.pos.push(x,y,z); gar.aColor.push(col[0],col[1],col[2]); gar.aPhase.push(phase ?? gr()); gar.aSize.push(size); };
+  const addLamp = (x,z,h=4.6) => {
+    A.pole.push({ p:[x,0,z], s:[1,h,1] });
+    A.bulb.push({ p:[x,h+0.15,z], s:[0.34,0.34,0.34] });
+    A.pool.push({ p:[x,0.07,z], s:[12,1,12] });
+  };
+  const addTree = (x,z,s) => A.tree.push({ p:[x,0,z], s:[s,s*(0.9+gr()*0.25),s], q: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), gr()*6.28), c:[0.9+gr()*0.15,0.9+gr()*0.15,0.9+gr()*0.15] });
+
+  // ---- кварталы ----
+  const allBlocks = [];
+  for (let bx=-R; bx<=R; bx++) for (let bz=-R; bz<=R; bz++) allBlocks.push([bx,bz]);
+  const lotsTaken = new Map();
+  let idx = 0;
+  for (const [bx,bz] of used){
+    for (const lot of lotsOfBlock(bx,bz)){
+      if (idx >= N) break;
+      lotsTaken.set(`${lot.x},${lot.z}`, true);
+      const f = list[idx++];
+      houses.push(makeHouse(f, lot));
+    }
+  }
+  for (const [bx,bz] of allBlocks){
+    const cx = bx*P, cz = bz*P, key = bx+','+bz, sp = SPECIAL[key];
+    // сугробы по краям квартала (с проходами к домам)
+    const gapsX = sp ? [0] : [-10,0,10];
+    for (const s of [1,-1]){
+      segs(-HALF_BLOCK+0.6, HALF_BLOCK-0.6, gapsX, 1.5).forEach(([a,b]) => A.bank.push({ p:[cx+(a+b)/2, 0, cz+s*(HALF_BLOCK+0.3)], s:[b-a, 0.5, 0.85] }));
+      segs(-HALF_BLOCK+0.6, HALF_BLOCK-0.6, sp ? [0] : [], 1.5).forEach(([a,b]) => A.bank.push({ p:[cx+s*(HALF_BLOCK+0.3), 0, cz+(a+b)/2], s:[b-a, 0.5, 0.85], q:Q90 }));
+    }
+    if (!sp){
+      for (const s of [1,-1]) for (const ox of [-5,5]) addLamp(cx+ox, cz+s*(HALF_BLOCK+0.4));
+      for (const lot of lotsOfBlock(bx,bz)){
+        if (lotsTaken.has(`${lot.x},${lot.z}`)) continue;
+        const k = 1 + Math.floor(gr()*2.4);
+        for (let i=0;i<k;i++) addTree(lot.x + (gr()-0.5)*7, lot.z + (gr()-0.5)*8, 0.8 + gr()*0.5);
+      }
+    }
+  }
+  // ---- дома ----
+  for (const h of houses) emitHouse(h, A, gar, smk, addTree);
+  // ---- соседи ----
+  for (const h of houses) neighborMap.set(`${h.lot.road}|${h.lot.side}|${h.lot.xi}`, h);
+
+  // ---- особые места ----
+  buildPlaza(A, addLight, addLamp, addTree);
+  buildRink(total >= 25, A, addLight, addLamp, addTree);
+  buildFair(total >= 100, A, addLight, addLamp, addTree);
+
+  // ---- лес вокруг ----
+  const rIn = cityHalf + 8, nForest = 260 + R*90;
+  for (let i=0;i<nForest;i++){
+    const a = gr()*Math.PI*2, d = rIn + Math.pow(gr(), 0.8)*(110 + R*10);
+    addTree(Math.cos(a)*d, Math.sin(a)*d, 0.9 + gr()*1.1);
+  }
+
+  // ---- дороги ----
+  const rp = [], ruv = [], ri = [];
+  const quad = (x0,z0,x1,z1,u0,u1,vertical,y) => {
+    const b = rp.length/3;
+    if (!vertical){ rp.push(x0,y,z0, x1,y,z0, x1,y,z1, x0,y,z1); ruv.push(u0,0, u1,0, u1,1, u0,1); }
+    else { rp.push(x0,y,z0, x1,y,z0, x1,y,z1, x0,y,z1); ruv.push(u0,0, u0,1, u1,1, u1,0); }
+    ri.push(b,b+2,b+1, b,b+3,b+2);
+  };
+  const ext = cityHalf + 4;
+  for (let j=-R-1; j<=R; j++){
+    const zc = (j+0.5)*P; quad(-ext, zc-4, ext, zc+4, -ext/8, ext/8, false, 0.03);
+    const xc = (j+0.5)*P; quad(xc-4, -ext, xc+4, ext, -ext/8, ext/8, true, 0.035);
+  }
+  const rg = new THREE.BufferGeometry();
+  rg.setAttribute('position', new THREE.Float32BufferAttribute(rp,3));
+  rg.setAttribute('uv', new THREE.Float32BufferAttribute(ruv,2));
+  rg.setIndex(ri); rg.computeVertexNormals();
+  const roads = new THREE.Mesh(rg, MAT.road); roads.receiveShadow = true; city.add(roads);
+
+  // ---- инстансы ----
+  bodyMesh = instanced(GEO.box, MAT.body, A.body, { cast:true, receive:true });
+  roofMesh = instanced(GEO.prism, MAT.roof, A.roof, { cast:true });
+  snowMesh = instanced(GEO.prism, MAT.snow, A.snow, { cast:true, receive:true });
+  instanced(GEO.cbox, MAT.door, A.door);
+  instanced(GEO.box, MAT.chim, A.chim, { cast:true });
+  instanced(GEO.box, MAT.snow, A.cap);
+  instanced(GEO.cbox, windowMat, A.win);
+  instanced(GEO.tree, MAT.tree, A.tree, { cast:true, receive:true });
+  instanced(GEO.bank, MAT.bank, A.bank, { receive:true });
+  instanced(GEO.pole, MAT.pole, A.pole, { cast:true });
+  instanced(GEO.bulb, MAT.bulb, A.bulb);
+  instanced(GEO.flat, MAT.pool, A.pool);
+  instanced(GEO.flat, MAT.path, A.path, { receive:true });
+  pointsFrom(gar, garlandMat, [['aColor',3],['aPhase',1],['aSize',1]]);
+  pointsFrom(smk, smokeMat, [['aPhase',1]]);
+
+  // селектор
+  selRing = new THREE.Mesh(new THREE.RingGeometry(5.4, 6.2, 48).rotateX(-Math.PI/2), MAT.ring);
+  selRing.visible = false; city.add(selRing);
+
+  // туман и горы под размер города
+  scene.fog.density = 1.5 / (cityHalf + 260);
+  buildMountains(cityHalf + 120);
+  controls.maxDistance = 120 + R*45;
+  resetSigns();
+}
+function segs(a, b, gaps, hw){
+  const out = []; let s = a;
+  for (const g of [...gaps].sort((p,q)=>p-q)){ if (g-hw > s) out.push([s, g-hw]); s = Math.max(s, g+hw); }
+  if (b > s) out.push([s, b]); return out;
+}
+
+function makeHouse(f, lot){
+  const r = rng(f.n*9301 + 49297);
+  const floors = r() < 0.34 ? 2 : 1;
+  const w = 6 + r()*2, d = 5.6 + r()*1.4, h = floors === 2 ? 6.2 : 3.6;
+  const ridgeZ = r() < 0.42;
+  const rh = ridgeZ ? 3.0 + r()*1.3 : 2.3 + r()*1.0;
+  const pick = a => a[Math.floor(r()*a.length)];
+  const house = {
+    n:f.n, name:f.name, date:f.date, left:f.left, lot,
+    x: lot.x, z: lot.z, facing: lot.facing, w, d, h, rh, floors, ridgeZ,
+    body: pick(BODY), roof: pick(ROOF), door: pick(DOOR),
+    garland: !f.left && r() < 0.66, warm: r() < 0.35, chimney: r() < 0.72, chimSide: r()<0.5 ? -1 : 1, backTree: r() < 0.6, seed: r(),
+    street: streetName(lot.road, lot.xi), number: houseNumber(lot)
+  };
+  house.top = h + rh + 1.4;
+  house.signY = floors === 2 ? 3.2 : 2.95;
+  house.frontZ = lot.z + lot.facing*(d/2);
+  return house;
+}
+
+function emitHouse(H, A, gar, smk, addTree){
+  const { x, z, facing:f, w, d, h, rh } = H;
+  const r = rng(H.n*31 + 7);
+  A.body.push({ p:[x,0,z], s:[w,h,d], c:H.body });
+  if (!H.ridgeZ){
+    A.roof.push({ p:[x,h,z], s:[w+0.8, rh, d+0.9], c:H.roof });
+    A.snow.push({ p:[x,h+0.3,z], s:[w+0.55, rh, (d+0.9)*0.98] });
+  } else {
+    A.roof.push({ p:[x,h,z], s:[d+0.9, rh, w+0.8], q:Q90, c:H.roof });
+    A.snow.push({ p:[x,h+0.3,z], s:[d+0.65, rh, (w+0.8)*0.98], q:Q90 });
+  }
+  const fz = z + f*(d/2 + 0.03);
+  A.door.push({ p:[x, 1.1, fz + f*0.04], s:[1.2, 2.2, 0.14], c:H.door });
+  A.bulb.push({ p:[x + 0.95, 2.45, fz + f*0.25], s:[0.16,0.16,0.16] });
+  const pathEnd = z + f*8.4;
+  A.path.push({ p:[x, 0.045, (fz + pathEnd)/2], s:[1.6, 1, Math.abs(pathEnd - fz)] });
+  const win = (wx, wy, wz, sx, sy, sz) => A.win.push({ p:[wx,wy,wz], s:[sx,sy,sz], c:[H.left ? 9 : 0.12 + r()*0.75, r(), r()] });
+  win(x - w*0.3, 1.9, fz, 1.25, 1.15, 0.12);
+  win(x + w*0.3, 1.9, fz, 1.25, 1.15, 0.12);
+  if (H.floors === 2){
+    win(x - w*0.28, 4.55, fz, 1.1, 1.1, 0.12);
+    win(x, 4.55, fz, 1.1, 1.1, 0.12);
+    win(x + w*0.28, 4.55, fz, 1.1, 1.1, 0.12);
+  }
+  if (H.ridgeZ) win(x, h + rh*0.34, z + f*(d/2 + 0.3), 0.85, 0.85, 0.12);
+  for (const s of [-1,1]){
+    win(x + s*(w/2 + 0.03), 1.9, z, 0.12, 1.1, 1.2);
+    if (H.floors === 2) win(x + s*(w/2 + 0.03), 4.55, z, 0.12, 1.1, 1.2);
+  }
+  // труба + дым
+  if (H.chimney){
+    let cx, cz, cy, ch;
+    if (!H.ridgeZ){ cx = x + H.chimSide*w*0.25; cz = z - f*d*0.16; cy = h + rh*0.45; ch = rh*0.75 + 0.9; }
+    else { cx = x + H.chimSide*w*0.2; cz = z - f*d*0.2; cy = h + rh*0.3; ch = rh*0.75 + 0.9; }
+    A.chim.push({ p:[cx, cy, cz], s:[0.75, ch, 0.75] });
+    A.cap.push({ p:[cx, cy+ch, cz], s:[0.95, 0.28, 0.95] });
+    if (!H.left && smk.pos.length/3 < 1400){ for (let i=0;i<5;i++){ smk.pos.push(cx, cy+ch+0.2, cz); smk.aPhase.push(i/5 + r()*0.1); } }
+  }
+  // гирлянда
+  if (H.garland){
+    const pal = H.warm ? LIGHTS_WARM : LIGHTS_MULTI;
+    let k = 0;
+    if (!H.ridgeZ){
+      const gz = z + f*(d/2 + 0.5), L = w + 0.8, n = Math.round(L/0.42);
+      for (let i=0;i<=n;i++){ const t = i/n; gar.pos.push(x - L/2 + L*t, h - 0.12 - 0.3*Math.sin(Math.PI*((t*3)%1)), gz); const c = pal[k++ % pal.length]; gar.aColor.push(...c); gar.aPhase.push(r()); gar.aSize.push(0.42); }
+    } else {
+      const gz = z + f*(d/2 + 0.52), L = w/2 + 0.45;
+      const n = Math.round(Math.hypot(L, rh)/0.42);
+      for (const s of [-1,1]) for (let i=0;i<n;i++){ const t = i/n; gar.pos.push(x + s*L*(1-t), h + rh*t - 0.05, gz); const c = pal[k++ % pal.length]; gar.aColor.push(...c); gar.aPhase.push(r()); gar.aSize.push(0.42); }
+    }
+  }
+  if (H.backTree) addTree(x + (r()-0.5)*w, z - f*(d/2 + 2.6), 0.6 + r()*0.4);
+}
+
+/* ---------- центральная площадь ---------- */
+let bigStar = null;
+function buildPlaza(A, addLight, addLamp, addTree){
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(13.6, 64).rotateX(-Math.PI/2), MAT.paving); disc.position.y = 0.04; disc.receiveShadow = true;
+  const inner = new THREE.Mesh(new THREE.RingGeometry(7.6, 8.4, 64).rotateX(-Math.PI/2), MAT.paving2); inner.position.y = 0.05;
+  city.add(disc, inner);
+  const k = 4.4;
+  const tree = new THREE.Mesh(GEO.tree, MAT.tree); tree.scale.set(k, k*1.05, k); tree.castShadow = true; tree.receiveShadow = true; city.add(tree);
+  bigStar = new THREE.Mesh(new THREE.OctahedronGeometry(1.15), MAT.star); bigStar.position.set(0, 4.6*k*1.05 + 0.9, 0); city.add(bigStar);
+  const r = rng(77);
+  const top = 4.6*k*1.05;
+  for (let i=0;i<360;i++){
+    const t = i/360, y = 1.25*k + (top - 1.25*k - 1.2)*t, rad = (1.66*(1-t) + 0.14)*k + 0.15, a = t*Math.PI*2*8.5;
+    addLight(Math.cos(a)*rad, y, Math.sin(a)*rad, LIGHTS_MULTI[i % 5], 0.62, r());
+  }
+  for (let i=0;i<44;i++){
+    const t = 0.05 + r()*0.85, y = 1.4*k + (top - 1.4*k - 1.5)*t, rad = (1.55*(1-t) + 0.1)*k, a = r()*Math.PI*2;
+    addLight(Math.cos(a)*rad, y, Math.sin(a)*rad, LIGHTS_MULTI[Math.floor(r()*5)], 1.25, r());
+  }
+  // подарки
+  const gift = [[3.2,0,2.8,1.2,0xd9443f],[-3.6,0,2.2,1.0,0x3f7bd9],[2.4,0,-3.4,1.4,0xf0b43c],[-2.6,0,-3.0,0.9,0x45a06e],[4.4,0,-0.6,0.8,0xb35cc9]];
+  for (const [gx,,gz,s,c] of gift){
+    const m = new THREE.Mesh(GEO.box, new THREE.MeshLambertMaterial({ color:c })); m.scale.set(s*1.3,s,s*1.3); m.position.set(gx,0,gz); m.rotation.y = gx; m.castShadow = true;
+    const rib = new THREE.Mesh(GEO.box, new THREE.MeshLambertMaterial({ color:0xfff1d6 })); rib.scale.set(s*1.32, s*1.02, 0.18*s); rib.position.copy(m.position); rib.rotation.y = gx;
+    city.add(m, rib);
+  }
+  // снеговик
+  const sm = new THREE.Group();
+  [[1.5,1.3],[1.05,3.4],[0.72,4.95]].forEach(([rr,y]) => { const b = new THREE.Mesh(GEO.bulb, MAT.white); b.scale.setScalar(rr); b.position.y = y; b.castShadow = true; sm.add(b); });
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.9, 8).rotateX(Math.PI/2), MAT.carrot); nose.position.set(0, 4.95, 0.98); sm.add(nose);
+  const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.8,12), MAT.dark); hat.position.y = 5.95; const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,0.1,12), MAT.dark); brim.position.y = 5.58; sm.add(hat, brim);
+  [[-0.25,5.15],[0.25,5.15]].forEach(([ex,ey]) => { const e = new THREE.Mesh(GEO.bulb, MAT.dark); e.scale.setScalar(0.09); e.position.set(ex, ey, 0.66); sm.add(e); });
+  const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.85,0.2,6,16).rotateX(Math.PI/2), new THREE.MeshLambertMaterial({ color:0xff8a3d })); scarf.position.y = 4.3; sm.add(scarf);
+  sm.position.set(9.4, 0, 6.2); sm.rotation.y = 0.9; city.add(sm);
+  for (const [lx,lz] of [[10.5,10.5],[-10.5,10.5],[10.5,-10.5],[-10.5,-10.5]]) addLamp(lx, lz, 4.2);
+  for (const [tx,tz] of [[-12.5,-4],[-12.8,5],[12.6,-6],[-5,12.8],[5,-12.9]]) addTree(tx, tz, 0.7);
+}
+
+/* ---------- каток ---------- */
+function fencePlot(cx, cz){
+  const g = new THREE.Group(), W = 11, D = 9;
+  const pts = []; for (let i=-W;i<=W;i+=2.75){ pts.push([i,-D],[i,D]); } for (let j=-D+2.25;j<D;j+=2.25){ pts.push([-W,j],[W,j]); }
+  for (const [px,pz] of pts){ const p = new THREE.Mesh(GEO.box, MAT.wood); p.scale.set(0.25,1.3,0.25); p.position.set(cx+px,0,cz+pz); p.castShadow = true; g.add(p); }
+  for (const [a,b,c,dd] of [[-W,-D,W,-D],[-W,D,W,D],[-W,-D,-W,D],[W,-D,W,D]]){
+    const L = Math.hypot(c-a, dd-b); const rail = new THREE.Mesh(GEO.cbox, MAT.wood); rail.scale.set(L, 0.14, 0.14); rail.position.set(cx+(a+c)/2, 1.0, cz+(b+dd)/2); if (a===c) rail.rotation.y = Math.PI/2; g.add(rail);
+  }
+  city.add(g);
+}
+function buildRink(open, A, addLight, addLamp, addTree){
+  const cx = P, cz = 0;
+  if (!open){
+    fencePlot(cx, cz);
+    city.add(makeSign('Каток', 'откроется на 25 жителях', new THREE.Vector3(cx, 0, cz + 9.6), 0));
+    for (const [tx,tz] of [[-6,-4],[5,3],[7,-5]]) addTree(cx+tx, cz+tz, 0.7);
+    return;
+  }
+  const ice = new THREE.Mesh(new THREE.CircleGeometry(1, 64).rotateX(-Math.PI/2), MAT.ice); ice.scale.set(11.2, 1, 8.4); ice.position.set(cx, 0.06, cz); ice.receiveShadow = true; city.add(ice);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.06, 6, 64).rotateX(Math.PI/2), MAT.white); rim.scale.set(11.6, 8.8, 8); rim.position.set(cx, 0.12, cz); city.add(rim);
+  const posts = 14;
+  for (let i=0;i<posts;i++){
+    const a = i/posts*Math.PI*2, px = cx + Math.cos(a)*12.6, pz = cz + Math.sin(a)*9.6;
+    A.pole.push({ p:[px,0,pz], s:[0.8,2.8,0.8] });
+    const a2 = (i+1)/posts*Math.PI*2, qx = cx + Math.cos(a2)*12.6, qz = cz + Math.sin(a2)*9.6;
+    for (let j=0;j<10;j++){ const t = j/10; addLight(px+(qx-px)*t, 2.75 - Math.sin(Math.PI*t)*0.45, pz+(qz-pz)*t, LIGHTS_MULTI[(i+j)%5], 0.5); }
+  }
+  addLamp(cx-13.6, cz-11.4); addLamp(cx+13.6, cz+11.4);
+  city.add(makeSign('Каток', '', new THREE.Vector3(cx-9, 0, cz + 12.2), 0.15));
+}
+
+/* ---------- ярмарка ---------- */
+function buildFair(open, A, addLight, addLamp, addTree){
+  const cx = -P, cz = 0;
+  if (!open){
+    fencePlot(cx, cz);
+    city.add(makeSign('Ярмарка', 'откроется на 100 жителях', new THREE.Vector3(cx, 0, cz + 9.6), 0));
+    for (const [tx,tz] of [[-6,-3],[6,-4],[-2,4]]) addTree(cx+tx, cz+tz, 0.7);
+    return;
+  }
+  const stripe = boardCanvas(128, 32, (x) => { for (let i=0;i<8;i++){ x.fillStyle = i%2 ? '#fff4e6' : '#d9443f'; x.fillRect(i*16,0,16,32); } });
+  stripe.wrapS = THREE.RepeatWrapping;
+  const roofM = new THREE.MeshLambertMaterial({ map: stripe });
+  for (let i=0;i<5;i++){
+    const a = Math.PI*0.15 + i/4*Math.PI*0.7, px = cx + Math.cos(a)*9, pz = cz - Math.sin(a)*7 + 1.5;
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(GEO.box, MAT.wood); body.scale.set(3.4, 2.4, 2.4); body.castShadow = true;
+    const roof = new THREE.Mesh(GEO.prism, roofM); roof.scale.set(4.0, 1.3, 3.2); roof.position.y = 2.4; roof.castShadow = true;
+    const cap = new THREE.Mesh(GEO.prism, MAT.snow); cap.scale.set(3.8, 1.3, 3.0); cap.position.y = 2.62;
+    const th = Math.atan2(cx-px, cz-pz);
+    g.add(body, roof, cap); g.position.set(px, 0, pz); g.rotation.y = th; city.add(g);
+    const zx = Math.sin(th), zz = Math.cos(th), xx = Math.cos(th), xz = -Math.sin(th);
+    for (let j=0;j<9;j++){ const t = j/8 - 0.5; addLight(px + xx*t*3.8 + zx*1.75, 2.3 - Math.sin(Math.PI*(t+0.5))*0.25, pz + xz*t*3.8 + zz*1.75, LIGHTS_WARM[j%2], 0.45); }
+  }
+  addTree(cx, cz + 3, 1.2);
+  addLamp(cx-13.6, cz+11.4); addLamp(cx+13.6, cz-11.4);
+  city.add(makeSign('Ярмарка', '', new THREE.Vector3(cx+9, 0, cz + 12.2), -0.15));
+}
+
+/* ============================== надписи на фасадах ============================== */
+const SIGN_POOL = isCoarse ? 14 : 22;
+const signs = [];
+for (let i=0;i<SIGN_POOL;i++){
+  const c = document.createElement('canvas'); c.width = 320; c.height = 72;
+  const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+  const mat = new THREE.MeshBasicMaterial({ map: tex });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1,1), mat); mesh.visible = false;
+  scene.add(mesh); signs.push({ c, tex, mat, mesh, house:null });
+}
+function drawSign(s, h){
+  const x = s.c.getContext('2d'), W = s.c.width, Hh = s.c.height;
+  x.clearRect(0,0,W,Hh);
+  roundRect(x, 3, 3, W-6, Hh-6, 14); x.fillStyle = '#fff6e8'; x.fill(); x.lineWidth = 5; x.strokeStyle = '#2a1a14'; x.stroke();
+  const t = h.left ? 'свободно' : (h.name || '№' + h.n);
+  x.fillStyle = h.name ? '#1b2142' : '#6a6f90'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  fitText(x, t, W-30, 38, 800, 'Manrope, Arial, sans-serif'); x.fillText(t, W/2, Hh/2 + 2);
+  s.tex.needsUpdate = true;
+}
+function resetSigns(){ signs.forEach(s => { s.house = null; s.mesh.visible = false; }); }
+function placeSign(s, h){
+  s.house = h; drawSign(s, h);
+  const sw = Math.min(h.w*0.58, 4.2);
+  s.mesh.scale.set(sw, sw*72/320, 1);
+  s.mesh.position.set(h.x, h.signY, h.z + h.facing*(h.d/2 + 0.06));
+  s.mesh.rotation.set(0, h.facing > 0 ? 0 : Math.PI, 0);
+  s.mesh.visible = true;
+}
+function updateSigns(){
+  const cp = camera.position, LIM = 75*75;
+  const near = [];
+  for (const h of houses){ const dx = h.x-cp.x, dz = h.z-cp.z, dy = h.h - cp.y; const d2 = dx*dx+dz*dz+dy*dy; if (d2 < LIM) near.push([d2,h]); }
+  near.sort((a,b) => a[0]-b[0]);
+  const want = new Set(near.slice(0, SIGN_POOL).map(v => v[1]));
+  const free = [];
+  for (const s of signs){ if (s.house && want.has(s.house)) want.delete(s.house); else free.push(s); }
+  for (const s of free){ const h = want.values().next().value; if (h){ want.delete(h); placeSign(s, h); } else { s.house = null; s.mesh.visible = false; } }
+}
+
+/* ============================== подписи над домами ============================== */
+const LABEL_POOL = isCoarse ? 26 : 42;
+const labelsEl = $('labels');
+const labels = [];
+for (let i=0;i<LABEL_POOL;i++){
+  const el = document.createElement('div'); el.className = 'lbl'; labelsEl.appendChild(el);
+  el.addEventListener('click', () => { if (el._h) selectHouse(el._h, true); });
+  labels.push({ el, house:null, x:0, y:0, o:0 });
+}
+let showLabels = true, selected = null;
+const proj = new THREE.Vector3();
+function labelText(h){ return h.left ? 'свободный дом' : (h.name || 'житель №' + h.n); }
+function screenOf(h, y){ proj.set(h.x, y ?? h.top, h.z).project(camera); return { x:(proj.x*0.5+0.5)*innerWidth, y:(-proj.y*0.5+0.5)*innerHeight, ok: proj.z < 1 && Math.abs(proj.x) < 1.15 && Math.abs(proj.y) < 1.15 }; }
+function pickLabels(){
+  const cp = camera.position, camD = camera.position.distanceTo(controls.target);
+  const LD = clamp(camD*1.55, 45, 150);
+  const cand = [];
+  for (const h of houses){ const dx = h.x-cp.x, dz = h.z-cp.z, dy = h.top-cp.y; const d = Math.sqrt(dx*dx+dy*dy+dz*dz); if (d < LD || h === selected) cand.push([h === selected ? -1 : d, h]); }
+  cand.sort((a,b) => a[0]-b[0]);
+  const rects = [], chosen = [];
+  for (const [d,h] of cand){
+    if (chosen.length >= LABEL_POOL) break;
+    const s = screenOf(h); if (!s.ok) continue;
+    const w = labelText(h).length*7.6 + 34, hh = 30;
+    const rect = [s.x - w/2, s.y - hh - 8, s.x + w/2, s.y - 8];
+    if (h !== selected && rects.some(q => rect[0] < q[2] && rect[2] > q[0] && rect[1] < q[3] && rect[3] > q[1])) continue;
+    rects.push(rect); chosen.push([h, d < 0 ? 0 : d, LD]);
+  }
+  const keep = new Map(chosen.map(c => [c[0], c]));
+  const free = [];
+  for (const L of labels){ if (L.house && keep.has(L.house)){ L.fade = keep.get(L.house); keep.delete(L.house); } else free.push(L); }
+  for (const L of free){
+    const it = keep.values().next().value;
+    if (it){ keep.delete(it[0]); setLabel(L, it[0]); L.fade = it; }
+    else { L.house = null; L.el._h = null; L.fade = null; }
+  }
+}
+function setLabel(L, h){
+  L.house = h; L.el._h = h; L.el.textContent = labelText(h);
+  L.el.classList.toggle('anon', !h.name || h.left);
+  L.el.classList.toggle('sel', h === selected);
+}
+function updateLabels(){
+  for (const L of labels){
+    const want = showLabels && L.house && L.fade ? (L.house === selected ? 1 : 1 - smooth(L.fade[2]*0.62, L.fade[2], L.fade[1])) : 0;
+    L.o += (want - L.o)*0.25;
+    if (L.o < 0.01 && !L.house){ if (L.el.style.opacity !== '0') L.el.style.opacity = '0'; continue; }
+    if (!L.house){ L.el.style.opacity = L.o.toFixed(2); L.el.style.pointerEvents = 'none'; continue; }
+    const s = screenOf(L.house);
+    if (!s.ok){ L.el.style.opacity = '0'; continue; }
+    L.el.style.transform = `translate3d(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px, 0) translate(-50%, calc(-100% - 11px))`;
+    L.el.style.opacity = L.o.toFixed(2);
+    L.el.style.pointerEvents = L.o > 0.4 ? 'auto' : 'none';
+  }
+}
+
+/* ============================== время суток ============================== */
+const KEYS = [
+  [0,    { top:0x060b22, bot:0x1b2552, fog:0x141c40, hs:0x4a5aa0, hg:0x1d2238, hi:0.62, dc:0x9fb3ff, di:0.32, night:1 }],
+  [5.0,  { top:0x0a1230, bot:0x272c60, fog:0x1a2148, hs:0x4e5ca2, hg:0x1f2338, hi:0.62, dc:0x9fb3ff, di:0.3, night:1 }],
+  [6.7,  { top:0x2c3d7c, bot:0xe39a8f, fog:0x8a7e9e, hs:0x9aa6d0, hg:0x5a5470, hi:0.68, dc:0xffb48a, di:0.45, night:0.5 }],
+  [8.6,  { top:0x4f8bd6, bot:0xd7e7f6, fog:0xc4d6ec, hs:0xc7dbf3, hg:0x8d95ad, hi:0.6, dc:0xfff1dc, di:0.62, night:0 }],
+  [15.0, { top:0x4f8bd6, bot:0xd7e7f6, fog:0xc4d6ec, hs:0xc7dbf3, hg:0x8d95ad, hi:0.6, dc:0xfff1dc, di:0.62, night:0 }],
+  [16.6, { top:0x5d76c0, bot:0xffc999, fog:0xd9b9a8, hs:0xc0c4e0, hg:0x8a7f8e, hi:0.6, dc:0xffbf80, di:0.55, night:0.12 }],
+  [17.6, { top:0x2d3a86, bot:0xff8e6e, fog:0x9a6f8c, hs:0x8f8fc4, hg:0x4f4566, hi:0.6, dc:0xff9a6a, di:0.36, night:0.55 }],
+  [18.8, { top:0x101a4e, bot:0x4b4d96, fog:0x323a72, hs:0x5a6ab8, hg:0x262a48, hi:0.64, dc:0x9fb3ff, di:0.24, night:0.92 }],
+  [20.6, { top:0x060b22, bot:0x1b2552, fog:0x141c40, hs:0x4a5aa0, hg:0x1d2238, hi:0.62, dc:0x9fb3ff, di:0.32, night:1 }],
+  [24,   { top:0x060b22, bot:0x1b2552, fog:0x141c40, hs:0x4a5aa0, hg:0x1d2238, hi:0.62, dc:0x9fb3ff, di:0.32, night:1 }],
+];
+KEYS.forEach(k => { for (const f of ['top','bot','fog','hs','hg','dc']) k[1][f] = new THREE.Color(k[1][f]); });
+const T = { top:new THREE.Color(), bot:new THREE.Color(), fog:new THREE.Color(), hs:new THREE.Color(), hg:new THREE.Color(), dc:new THREE.Color(), hi:0, di:0, night:0 };
+function sampleTime(hh){
+  let i = 0; while (i < KEYS.length-2 && KEYS[i+1][0] <= hh) i++;
+  const [h0,a] = KEYS[i], [h1,b] = KEYS[i+1], t = smooth(0,1,(hh-h0)/(h1-h0));
+  for (const f of ['top','bot','fog','hs','hg','dc']) T[f].copy(a[f]).lerp(b[f], t);
+  for (const f of ['hi','di','night']) T[f] = a[f] + (b[f]-a[f])*t;
+  return T;
+}
+let manualHour = null;
+const cityHour = () => manualHour ?? ((Date.now()/1000/DAY_SECONDS*24 + DAY_OFFSET_H) % 24);
+const sunDir = new THREE.Vector3(), moonDir = new THREE.Vector3(), lightDir = new THREE.Vector3();
+const rockBase = new THREE.Color(0x6e7aa0), capBase = new THREE.Color(0xf6f9ff);
+function fmtHour(h){ const m = Math.floor(h*60) % 1440; return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); }
+function phaseWord(h){ return h >= 5 && h < 11 ? 'утро' : h >= 11 && h < 17 ? 'день' : h >= 17 && h < 22.5 ? 'вечер' : 'ночь'; }
+let lastClock = '';
+function applyTime(hh, t){
+  const s = sampleTime(hh);
+  const sa = (hh - 6)/12*Math.PI;
+  sunDir.set(Math.cos(sa)*0.75, Math.sin(sa), -0.5).normalize();
+  moonDir.set(-Math.cos(sa)*0.7, Math.max(-Math.sin(sa), 0.28), 0.55).normalize();
+  const sunUp = sunDir.y > 0.02;
+  lightDir.copy(sunUp ? sunDir : moonDir); if (lightDir.y < 0.22){ lightDir.y = 0.22; lightDir.normalize(); }
+  skyU.uTop.value.copy(s.top); skyU.uBot.value.copy(s.bot); skyU.uSun.value.copy(sunDir); skyU.uSunCol.value.copy(s.dc);
+  skyU.uSunVis.value = smooth(-0.12, 0.12, sunDir.y);
+  scene.fog.color.copy(s.fog); renderer.setClearColor(s.fog);
+  hemi.color.copy(s.hs); hemi.groundColor.copy(s.hg); hemi.intensity = s.hi;
+  dir.color.copy(s.dc); dir.intensity = s.di;
+  const n = s.night;
+  const late = hh > 0.5 && hh < 5.5 ? clamp(Math.min(hh-0.5, 5.5-hh), 0, 1) : 0;
+  windowMat.uniforms.uNight.value = n; windowMat.uniforms.uLate.value = late;
+  windowMat.uniforms.uFrame.value.setRGB(0.92 - 0.68*n, 0.9 - 0.65*n, 0.86 - 0.5*n);
+  windowMat.uniforms.uGlass.value.setRGB(0.36 - 0.2*n, 0.48 - 0.26*n, 0.66 - 0.3*n);
+  for (const m of pointMats){ m.uniforms.uNight.value = n; m.uniforms.uTime.value = t; }
+  MAT.bulb.color.setRGB(0.95 + 1.6*n, 0.88 + 0.9*n, 0.7 + 0.15*n);
+  MAT.pool.color.setRGB(0.42*n, 0.34*n, 0.26*n);
+  MAT.star.color.setRGB(1.0 + 1.8*n, 0.82 + 1.2*n, 0.3 + 0.3*n);
+  MAT.ring.color.setRGB(1.0 + 0.8*n, 0.5 + 0.3*n, 0.2);
+  const dl = 1 - 0.38*n; for (const m of dayLitMats) m.color.setRGB(dl, dl, dl);
+  for (const sg of signs) sg.mat.color.setRGB(dl, dl*0.97, dl*0.92);
+  snow.material.uniforms.uCol.value.setRGB(1 - 0.18*n, 1 - 0.14*n, 1);
+  smokeMat.uniforms.uCol.value.copy(s.fog).lerp(new THREE.Color(0.92,0.94,1), 0.55);
+  mountainMats.rock.color.copy(rockBase).lerp(s.fog, 0.58);
+  mountainMats.cap.color.copy(capBase).lerp(s.fog, 0.42);
+  stars.material.uniforms.uNight.value = smooth(0.55, 1.0, n);
+  aurora.m.uniforms.uA.value = smooth(0.75, 1.0, n); aurora.m.uniforms.uTime.value = t;
+  moon.material.opacity = smooth(0.3, 0.8, n);
+  if (bloom) bloom.strength = 0.45 + 0.5*n;
+  // текст часов
+  const temp = Math.round(-7 - 6*n + Math.sin(hh/24*Math.PI*2)*2);
+  const txt = fmtHour(hh) + '|' + `${phaseWord(hh)} · ${temp < 0 ? '−' : ''}${Math.abs(temp)}° · снег`;
+  if (txt !== lastClock){ lastClock = txt; const [a,b] = txt.split('|'); $('clockT').textContent = a; $('clockW').textContent = b; if (!$('studio').hidden && manualHour === null){ $('tRange').value = hh.toFixed(2); $('tOut').textContent = fmtHour(hh); } }
+}
+
+/* ============================== камера ============================== */
+let fly = null, cine = null;
+function homeView(){
+  const small = houses.length <= 6;
+  const d = small ? 66 : 58 + R*22;
+  const target = new THREE.Vector3(0, 3, small ? -15 : -8);
+  const pos = target.clone().add(new THREE.Vector3(0.62, 0.62, 0.48).normalize().multiplyScalar(d));
+  return { pos, target };
+}
+const ease = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+function flyTo(pos, target, dur = 1.7, arc){
+  cine = null; document.body.classList.remove('cinema');
+  if (reduceMotion) dur = 0.01;
+  fly = { t:0, dur, p0:camera.position.clone(), t0:controls.target.clone(), p1:pos.clone(), t1:target.clone(),
+          arc: arc ?? clamp(camera.position.distanceTo(pos)*0.18, 0, 40) };
+  controls.enabled = false;
+}
+function houseView(h){
+  const target = new THREE.Vector3(h.x, h.h*0.55, h.z);
+  const pos = new THREE.Vector3(h.x + 9, h.h + 9, h.z + h.facing*24);
+  return { pos, target };
+}
+function startCinema(house){
+  closeSheets(!!house);
+  cine = { house, a: house ? Math.atan2(camera.position.x - house.x, camera.position.z - house.z) : Math.atan2(camera.position.x, camera.position.z), t:0 };
+  fly = null; controls.enabled = false; document.body.classList.add('cinema');
+}
+function stopCinema(){
+  if (!cine) return;
+  cine = null; document.body.classList.remove('cinema');
+  controls.target.copy(camLook); controls.enabled = true; controls.update();
+}
+const camLook = new THREE.Vector3();
+function updateCamera(dt){
+  if (fly){
+    fly.t += dt; const k = ease(clamp(fly.t/fly.dur, 0, 1));
+    camera.position.lerpVectors(fly.p0, fly.p1, k); camera.position.y += Math.sin(Math.PI*k)*fly.arc;
+    camLook.lerpVectors(fly.t0, fly.t1, k); camera.lookAt(camLook);
+    if (fly.t >= fly.dur){ controls.target.copy(fly.t1); fly = null; controls.enabled = true; controls.update(); }
+    return;
+  }
+  if (cine){
+    cine.t += dt;
+    if (cine.house){
+      const h = cine.house; cine.a += dt*0.22;
+      camLook.set(h.x, h.h*0.6, h.z);
+      camera.position.set(h.x + Math.sin(cine.a)*20, h.h + 6 + Math.sin(cine.t*0.4)*2, h.z + Math.cos(cine.a)*20);
+    } else {
+      cine.a += dt*0.05;
+      const rad = cityHalf*0.95 + 30;
+      camLook.set(Math.sin(cine.a*0.7)*cityHalf*0.15, 4, Math.cos(cine.a*0.5)*cityHalf*0.15);
+      camera.position.set(Math.sin(cine.a)*rad, 26 + cityHalf*0.22 + Math.sin(cine.t*0.15)*8, Math.cos(cine.a)*rad);
+    }
+    camera.lookAt(camLook); return;
+  }
+  controls.update();
+  // не улетать за город
+  const lim = cityHalf + 30, tg = controls.target;
+  const cx = clamp(tg.x, -lim, lim) - tg.x, cz = clamp(tg.z, -lim, lim) - tg.z;
+  if (cx || cz){ tg.x += cx; tg.z += cz; camera.position.x += cx; camera.position.z += cz; }
+  camLook.copy(tg);
+}
+
+/* ============================== выбор дома ============================== */
+let selRing = null;
+function selectHouse(h, flyThere){
+  selected = h;
+  labels.forEach(L => L.el.classList.toggle('sel', L.house === h));
+  selRing.visible = true; selRing.position.set(h.x, 0.09, h.z); selRing.scale.setScalar(Math.max(h.w, h.d)/9 + 0.6);
+  $('cName').textContent = h.left ? 'Свободный дом' : (h.name || 'Житель без ника');
+  $('cAddr').textContent = `${h.street}, дом ${h.number}`;
+  const dt = h.date ? new Date(h.date.replace(' ','T') + 'Z') : null;
+  const when = dt && !isNaN(dt) ? ` · с ${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}` : '';
+  $('cMeta').textContent = h.left ? 'Дом ждёт нового жителя' : (when ? `в городе${when.replace(' · с',' с')}` : 'житель города');
+  $('sNum').textContent = '№' + fmtNum(h.n); $('sOf').textContent = h.left ? 'свободен' : 'из ' + fmtNum(total);
+  const nb = $('cNeigh'); nb.replaceChildren();
+  const rel = [['слева', `${h.lot.road}|${h.lot.side}|${h.lot.xi - h.facing}`], ['справа', `${h.lot.road}|${h.lot.side}|${h.lot.xi + h.facing}`], ['напротив', `${h.lot.road}|${h.lot.side === 'S' ? 'N' : 'S'}|${h.lot.xi}`]];
+  let any = false;
+  for (const [word, key] of rel){
+    const o = neighborMap.get(key); if (!o) continue; any = true;
+    const b = document.createElement('button'); b.className = 'nchip'; b.type = 'button';
+    const sp = document.createElement('span'); sp.textContent = word;
+    const em = document.createElement('em'); em.textContent = o.name || '№' + o.n;
+    b.append(sp, em); b.addEventListener('click', () => selectHouse(o, true)); nb.appendChild(b);
+  }
+  if (!any){ const p = document.createElement('span'); p.className = 'note'; p.textContent = 'Соседи появятся с новыми подписчиками.'; nb.appendChild(p); }
+  $('studio').hidden = true; $('card').hidden = false; document.body.classList.add('sheet-open'); $('studioBtn').classList.remove('on');
+  if (flyThere){ const v = houseView(h); flyTo(v.pos, v.target); }
+  pickLabels();
+}
+function closeSheets(keepSelection){
+  $('card').hidden = true; $('studio').hidden = true; document.body.classList.remove('sheet-open');
+  $('studioBtn').classList.remove('on');
+  if (!keepSelection){ selected = null; if (selRing) selRing.visible = false; labels.forEach(L => L.el.classList.remove('sel')); }
+}
+
+// клик по дому
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let down = null;
+canvas.addEventListener('pointerdown', e => { down = { x:e.clientX, y:e.clientY, t:performance.now() }; if (cine) stopCinema(); hideHint(); });
+canvas.addEventListener('pointerup', e => {
+  if (!down) return; const moved = Math.hypot(e.clientX-down.x, e.clientY-down.y), dt = performance.now()-down.t; down = null;
+  if (moved > 7 || dt > 450 || fly) return;
+  ndc.set(e.clientX/innerWidth*2-1, -(e.clientY/innerHeight)*2+1); ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects([bodyMesh, roofMesh, snowMesh].filter(Boolean), false);
+  const hit = hits.find(h => h.instanceId !== undefined && h.instanceId < houses.length);
+  if (hit) selectHouse(houses[hit.instanceId], true);
+  else if (!$('card').hidden){ closeSheets(); }
+});
+
+/* ============================== поиск ============================== */
+const norm = s => s.trim().replace(/^@+/, '').toLowerCase();
+let toastT = 0;
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 5200); }
+$('searchForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = norm($('q').value); if (!q) return;
+  $('q').blur();
+  let h = null;
+  const num = q.replace(/^№\s*/, '');
+  if (/^\d+$/.test(num)) h = houses.find(x => x.n === +num);
+  if (!h) h = houses.find(x => x.name && x.name.toLowerCase() === q);
+  if (!h){ const pre = houses.filter(x => x.name && x.name.toLowerCase().startsWith(q)); if (pre.length === 1) h = pre[0]; }
+  if (h){ $('toast').hidden = true; selectHouse(h, true); }
+  else toast(`Жителя «${q}» пока нет. Если ты подписался недавно, твой дом появится после следующего обновления города.`);
+});
+
+/* ============================== кнопки ============================== */
+function zoom(k){
+  if (cine || fly) return;
+  const off = camera.position.clone().sub(controls.target);
+  const len = clamp(off.length()*k, controls.minDistance, controls.maxDistance);
+  flyTo(controls.target.clone().add(off.setLength(len)), controls.target.clone(), 0.45, 0);
+}
+$('homeBtn').addEventListener('click', () => { closeSheets(); const v = homeView(); flyTo(v.pos, v.target); });
+$('cineBtn').addEventListener('click', () => startCinema(null));
+$('exitCine').addEventListener('click', stopCinema);
+$('cClose').addEventListener('click', () => closeSheets());
+$('cOrbit').addEventListener('click', () => { if (selected) startCinema(selected); });
+$('cStory').addEventListener('click', () => { if (selected) makeStory(selected); });
+$('studioBtn').addEventListener('click', () => {
+  const open = $('studio').hidden; closeSheets(true);
+  if (open){ $('studio').hidden = false; $('studioBtn').classList.add('on'); document.body.classList.add('sheet-open'); syncStudio(); }
+});
+$('sClose').addEventListener('click', () => closeSheets());
+$('sCinema').addEventListener('click', () => startCinema(null));
+$('tRange').addEventListener('input', e => { manualHour = +e.target.value; $('tOut').textContent = fmtHour(manualHour); markPreset(null); });
+$('tPresets').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  manualHour = b.dataset.h === 'live' ? null : +b.dataset.h; markPreset(b); syncStudio();
+});
+function markPreset(btn){ $('tPresets').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === btn))); }
+function syncStudio(){
+  const h = cityHour(); $('tRange').value = h.toFixed(2); $('tOut').textContent = fmtHour(h);
+  if (manualHour === null) markPreset($('tPresets').querySelector('[data-h="live"]'));
+}
+$('tgLabels').addEventListener('change', e => { showLabels = e.target.checked; });
+$('tgHQ').checked = hq;
+$('tgHQ').addEventListener('change', e => {
+  hq = e.target.checked; store.set('city.hq', hq ? '1' : '0');
+  renderer.setPixelRatio(dprFor()); onResize();
+  dir.shadow.mapSize.set(hq ? 2048 : 1024, hq ? 2048 : 1024); if (dir.shadow.map){ dir.shadow.map.dispose(); dir.shadow.map = null; }
+});
+$('unlock').addEventListener('click', () => {
+  const nx = UNLOCKS.find(u => u.at > total) ;
+  const target = nx && nx.block ? nx : UNLOCKS.filter(u => u.block && u.at <= total).pop();
+  if (target && target.block){ const [bx,bz] = target.block; flyTo(new THREE.Vector3(bx*P + 10, 30, bz*P + 46), new THREE.Vector3(bx*P, 2, bz*P)); }
+  else if (nx) toast(`Место для «${nx.name}» появится, когда в городе будет ${fmtNum(nx.at)} ${plural(nx.at, ['житель','жителя','жителей'])}.`);
+});
+$('storyDone').addEventListener('click', () => $('storyModal').hidden = true);
+addEventListener('keydown', e => { if (e.key === 'Escape'){ if (cine) stopCinema(); else if (!$('storyModal').hidden) $('storyModal').hidden = true; else closeSheets(); } });
+
+let hintShown = false;
+function showHint(){
+  const el = $('hint');
+  el.textContent = isCoarse ? 'Один палец — двигать · два — крутить и приближать' : 'Тяни — двигать · правая кнопка — крутить · колесо — зум';
+  el.style.opacity = '1'; hintShown = true; setTimeout(hideHint, 7000);
+}
+function hideHint(){ if (hintShown){ $('hint').style.opacity = '0'; hintShown = false; } }
+
+/* ============================== сторис ============================== */
+function makeStory(h){
+  renderFrame();
+  const src = renderer.domElement;
+  const out = document.createElement('canvas'); out.width = 1080; out.height = 1920; const x = out.getContext('2d');
+  const sw = src.width, sh = src.height, want = 9/16;
+  let cw = sw, ch = sh; if (sw/sh > want) cw = sh*want; else ch = sw/want;
+  x.drawImage(src, (sw-cw)/2, (sh-ch)/2, cw, ch, 0, 0, 1080, 1920);
+  let g = x.createLinearGradient(0,0,0,460); g.addColorStop(0,'rgba(8,12,36,.8)'); g.addColorStop(1,'rgba(8,12,36,0)'); x.fillStyle = g; x.fillRect(0,0,1080,460);
+  x.textBaseline = 'top'; x.fillStyle = '#ff6a5f'; x.font = '400 104px Lobster, Georgia, serif'; x.fillText(CITY_NAME, 72, 104);
+  x.fillStyle = '#e9eefc'; x.font = '700 40px Manrope, Arial, sans-serif'; x.fillText('каждый подписчик — свой дом', 76, 236);
+  const cy = 1360;
+  roundRect(x, 60, cy, 960, 470, 44); x.fillStyle = 'rgba(247,250,255,.96)'; x.fill();
+  x.save(); roundRect(x, 60, cy, 960, 470, 44); x.clip(); x.fillStyle = '#d8352f'; x.fillRect(60, cy, 960, 96); x.restore();
+  x.fillStyle = '#fff'; x.font = '400 56px Lobster, Georgia, serif'; x.fillText('Прописка', 104, cy + 18);
+  const nm = h.name || 'Житель №' + h.n;
+  x.fillStyle = '#152043'; fitText(x, nm, 600, 76, 800, 'Manrope, Arial, sans-serif'); x.fillText(nm, 104, cy + 150);
+  x.fillStyle = '#1f6a52'; fitText(x, `${h.street}, дом ${h.number}`, 600, 42, 800, 'Manrope, Arial, sans-serif'); x.fillText(`${h.street}, дом ${h.number}`, 106, cy + 262);
+  x.fillStyle = '#5a6688'; x.font = '700 36px Manrope, Arial, sans-serif'; x.fillText('Найди свой дом — ссылка в профиле', 106, cy + 340);
+  x.save(); x.translate(880, cy + 230); x.rotate(-0.21);
+  x.strokeStyle = '#d8352f'; x.lineWidth = 7; x.beginPath(); x.arc(0,0,118,0,Math.PI*2); x.stroke();
+  x.lineWidth = 3; x.beginPath(); x.arc(0,0,100,0,Math.PI*2); x.stroke();
+  x.fillStyle = '#d8352f'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.font = '800 22px Manrope, Arial, sans-serif'; x.fillText('Ж И Т Е Л Ь', 0, -52);
+  fitText(x, '№' + fmtNum(h.n), 170, 64, 800, 'Manrope, Arial, sans-serif'); x.fillText('№' + fmtNum(h.n), 0, 4);
+  x.font = '700 24px Manrope, Arial, sans-serif'; x.fillText('из ' + fmtNum(total), 0, 56);
+  x.restore();
+  $('storyImg').src = out.toDataURL('image/jpeg', 0.92);
+  $('storyModal').hidden = false;
+}
+
+/* ============================== загрузка ============================== */
+function loadList(list){
+  const data = normalize(list);
+  closeSheets(); buildCity(data);
+  $('sub').innerHTML = '';
+  const b0 = document.createElement('b'); b0.textContent = fmtNum(total);
+  $('sub').append(b0, document.createTextNode(` ${plural(total, ['житель','жителя','жителей'])} · каждый подписчик — дом`));
+  const nx = UNLOCKS.find(u => u.at > total);
+  const prev = [...UNLOCKS].reverse().find(u => u.at <= total)?.at ?? 0;
+  const prog = nx ? (total - prev)/(nx.at - prev) : 1;
+  const BULBS = 14, lit = Math.round(prog*BULBS);
+  $('bulbs').replaceChildren(...Array.from({length:BULBS}, (_, i) => { const e = document.createElement('i'); if (i < lit) e.className = 'on'; return e; }));
+  const ut = $('unlockTxt'); ut.replaceChildren();
+  if (nx){
+    const left = nx.at - total, b = document.createElement('b');
+    b.textContent = nx.name;
+    ut.append(document.createTextNode('Следующее: '), b, document.createTextNode(` — ещё ${fmtNum(left)} ${plural(left, ['житель','жителя','жителей'])}`));
+  } else ut.textContent = 'Все места открыты';
+}
+
+function onResize(){
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight, false);
+  if (composer){ composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight); }
+  const sc = scaleUniform(); pointMats.forEach(m => m.uniforms.uScale.value = sc);
+  stars.material.uniforms.uPx.value = renderer.getPixelRatio();
+}
+addEventListener('resize', onResize);
+
+function renderFrame(){ if (composer) composer.render(); else renderer.render(scene, camera); }
+
+let last = performance.now(), clockT = 0, frameN = 0;
+function loop(now){
+  const dt = Math.min(0.05, (now - last)/1000); last = now; clockT += reduceMotion ? dt*0.3 : dt; frameN++;
+  applyTime(cityHour(), clockT);
+  updateCamera(dt);
+  // небо, звёзды, сияние, луна — вокруг камеры
+  sky.position.copy(camera.position); stars.position.copy(camera.position);
+  aurora.group.position.set(camera.position.x, 0, camera.position.z);
+  moon.position.copy(camera.position).addScaledVector(moonDir, 2000);
+  snow.material.uniforms.uCenter.value.set(camLook.x, 50, camLook.z);
+  dir.position.copy(camLook).addScaledVector(lightDir, 200); dir.target.position.copy(camLook);
+  if (bigStar){ bigStar.rotation.y += dt*0.6; }
+  if (selRing && selRing.visible){ const k = 1 + Math.sin(clockT*3)*0.06; selRing.scale.x = selRing.scale.z = (Math.max(selected.w, selected.d)/9 + 0.6)*k; }
+  if (frameN % 6 === 0) pickLabels();
+  if (frameN % 15 === 0) updateSigns();
+  updateLabels();
+  renderFrame();
+  requestAnimationFrame(loop);
+}
+
+async function start(){
+  try { await Promise.race([Promise.all([document.fonts.load('40px Lobster', 'Снежный город Каток Ярмарка'), document.fonts.load('800 40px Manrope', 'откроется жителях abc_09'), document.fonts.load('700 40px Manrope', 'Житель abc')]), new Promise(r => setTimeout(r, 2500))]); } catch(e){}
+  let list = null;
+  try {
+    const res = await fetch('followers.json', { cache:'no-store' });
+    if (res.ok){ const j = await res.json(); list = Array.isArray(j) ? j : j.followers; }
+  } catch(e){}
+  if (!list || !list.length){ $('loadingTxt').textContent = 'Не получилось загрузить жителей. Проверь, что рядом с сайтом лежит файл followers.json.'; return; }
+  loadList(list);
+  const v = homeView(); camera.position.copy(v.pos); controls.target.copy(v.target); controls.update(); camLook.copy(v.target);
+  onResize();
+  requestAnimationFrame(loop);
+  setTimeout(() => $('loading').classList.add('done'), 250);
+  setTimeout(showHint, 900);
+}
+start();
+})();
+</script>

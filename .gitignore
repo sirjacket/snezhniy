@@ -1,0 +1,4 @@
+# архивы TikTok с личными данными никогда не попадают на сайт
+*.zip
+user_data_tiktok.json
+TikTok_Data_*/
