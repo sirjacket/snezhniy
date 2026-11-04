@@ -293,7 +293,8 @@ const store = { get(k){ try{ return localStorage.getItem(k); }catch(e){ return n
 
 /* ============================== данные ============================== */
 function normalize(list){
-  return list.map((f,i) => ({ n: f.n || i+1, name: (f.name ?? f.UserName ?? '').trim(), date: f.date ?? f.Date ?? '', left: !!f.left }))
+  return list.map((f,i) => ({ n: f.n || i+1, name: (f.name ?? f.UserName ?? '').trim(), date: f.date ?? f.Date ?? '', left: !!f.left,
+                               house: f.house, color: f.color, roof: f.roof }))
              .sort((x,y) => x.n - y.n);
 }
 
