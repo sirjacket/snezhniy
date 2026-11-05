@@ -271,6 +271,7 @@ const UNLOCKS = [
   { key:'stadium', name:'Стадион',          at:1000 },
   { key:'palace',  name:'Ледяной дворец',   at:5000 },
 ];
+const FIRST_SPECIAL = 100;        // жители №1–100 получают особые здания
 const STREETS = ['Снежная','Еловая','Морозная','Пряничная','Мандариновая','Звёздная','Ледяная','Вьюжная','Санная',
   'Гирляндная','Хрустальная','Метельная','Полярная','Северная','Оленья','Каминная','Шоколадная','Сугробная',
   'Инейная','Совиная','Колокольная','Фонарная','Лыжная','Узорная','Свечная','Варежковая'];
@@ -551,6 +552,10 @@ const GEO = {
   bulb: new THREE.SphereGeometry(1, 10, 8),
   flat: new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2),
   col: new THREE.CylinderGeometry(0.2,0.25,1,10).translate(0,0.5,0),
+  ucyl: new THREE.CylinderGeometry(1,1,1,16).translate(0,0.5,0),
+  ucone: new THREE.ConeGeometry(1,1,18).translate(0,0.5,0),
+  torus: new THREE.TorusGeometry(1,0.34,10,22),
+  htorus: new THREE.TorusGeometry(1,0.42,8,14,Math.PI),
 };
 function radialTex(inner, outer){
   const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
@@ -727,7 +732,8 @@ function buildCity(list){
   R = Math.max(2, ...used.map(b => b[2]));
   cityHalf = (R + 0.5)*P;
 
-  const A = { body:[], roof:[], snow:[], cap:[], door:[], chim:[], win:[], tree:[], bank:[], pole:[], bulb:[], pool:[], path:[] };
+  const A = { body:[], roof:[], snow:[], cap:[], door:[], chim:[], win:[], tree:[], bank:[], pole:[], bulb:[], pool:[], path:[],
+              cyl:[], cone:[], torus:[], htorus:[], colm:[], gold:[], awn:{} };
   const gar = { pos:[], aColor:[], aPhase:[], aSize:[] };
   const smk = { pos:[], aPhase:[] };
   const gr = rng(4242);
@@ -822,6 +828,13 @@ function buildCity(list){
   instanced(GEO.bulb, MAT.bulb, A.bulb);
   instanced(GEO.flat, MAT.pool, A.pool);
   instanced(GEO.flat, MAT.path, A.path, { receive:true });
+  instanced(GEO.ucyl, MAT.body, A.cyl, { cast:true });
+  instanced(GEO.ucone, MAT.body, A.cone, { cast:true });
+  instanced(GEO.torus, MAT.body, A.torus, { cast:true });
+  instanced(GEO.htorus, MAT.body, A.htorus, { cast:true });
+  instanced(GEO.col, MAT.white, A.colm, { cast:true });
+  instanced(GEO.bulb, MAT.star, A.gold);
+  for (const k in A.awn) instanced(GEO.cbox, awnMat(k), A.awn[k], { cast:true });
   pointsFrom(gar, garlandMat, [['aColor',3],['aPhase',1],['aSize',1]]);
   pointsFrom(smk, smokeMat, [['aPhase',1]]);
 
@@ -863,24 +876,48 @@ function makeHouse(f, lot){
 }
 
 /* ---------- особые здания: задаются полем "house" в followers.json ---------- */
-const TYPE_NAMES = { big:'Большой дом', mansion:'Особняк', doner:'Донерная' };
+const TYPE_NAMES = { big:'Большой дом', mansion:'Особняк', doner:'Донерная', bakery:'Пекарня', cafe:'Кофейня', gifts:'Магазин подарков',
+  sweets:'Кондитерская', tower:'Дом с башней', chalet:'Шале', gingerbread:'Пряничный домик' };
+// магазины: цвета, вывеска, полоски козырька, что стоит на крыше
+const SHOPS = {
+  bakery: { title:'Пекарня',  body:0xf4dfc0, trim:0x7a4a2a, bg:'#6b3d22', ink:'#ffe7bf', edge:'#f2b35a', stripes:['#e9a23b','#fff4e6'], prop:'pretzel' },
+  cafe:   { title:'Кофейня',  body:0xe9dccb, trim:0x2e4a3f, bg:'#2e4a3f', ink:'#f6ecd8', edge:'#d9b26a', stripes:['#2f6b55','#f6efe2'], prop:'cup' },
+  gifts:  { title:'Подарки',  body:0xdfe8f6, trim:0x2f3b63, bg:'#2f3b8a', ink:'#ffffff', edge:'#ffd36a', stripes:['#3d5fd6','#ffffff'], prop:'gift' },
+  sweets: { title:'Сладости', body:0xf8dbe6, trim:0x8a2f55, bg:'#c2306a', ink:'#fff3f8', edge:'#ffffff', stripes:['#e2477f','#fff4f8'], prop:'cane' },
+};
+// порядок особых зданий для первых жителей (если в followers.json не задан свой "house")
+const AUTO_TYPES = ['mansion','bakery','tower','gingerbread','chalet','cafe','big','gifts','tower','mansion','sweets','chalet'];
+const MANSION_COLORS = [[0xf0c9bd,0x5c2f3c],[0xf4f6fb,0x2f3b63],[0xcfe7d8,0x2f5d4a],[0xf3e2c0,0x7d3b3b],[0xdcd0ef,0x4b3a6b],[0xcfe0f4,0x34507a]];
 const hexColor = v => (typeof v === 'string' && /^#?[0-9a-f]{6}$/i.test(v.trim())) ? parseInt(v.trim().replace('#',''), 16) : null;
 function applyCustom(H, f){
-  const t = String(f.house || '').trim().toLowerCase();
+  let t = String(f.house || '').trim().toLowerCase(), auto = false;
+  if (!t && f.n <= FIRST_SPECIAL){ t = AUTO_TYPES[(f.n - 1) % AUTO_TYPES.length]; auto = true; }
   if (TYPE_NAMES[t]) H.type = t;
   if (t === 'big'){
     Object.assign(H, { w:9.2, d:7.6, floors:2, h:6.6, rh:3.4, ridgeZ:false, chimney:true, garland:!f.left });
     H.signY = 3.4;
   } else if (t === 'mansion'){
     Object.assign(H, { w:10.2, d:7.4, floors:3, h:8.4, rh:2.8, ridgeZ:false, chimney:true, garland:!f.left, body:0xf0c9bd, roof:0x5c2f3c, door:0x6b2f2f });
+    if (auto){ const [b, r] = MANSION_COLORS[f.n % MANSION_COLORS.length]; H.body = b; H.roof = r; }
     H.signY = 5.78; H.signW = 3.4; H.signZ = H.z + H.facing*(H.d/2 + 1.62);
   } else if (t === 'doner'){
     Object.assign(H, { w:8.6, d:6.4, floors:1, h:4.0, rh:0.35, ridgeZ:false, chimney:false, garland:false, body:0xf3d9a8, noFacadeSign:true });
+  } else if (SHOPS[t]){
+    Object.assign(H, { w:8.6, d:6.4, floors:1, h:4.2, rh:0.35, ridgeZ:false, chimney:false, garland:false, body:SHOPS[t].body, noFacadeSign:true });
+  } else if (t === 'tower'){
+    Object.assign(H, { w:6.2, d:6.0, floors:2, h:6.2, rh:3.0, ridgeZ:false, chimney:true, garland:!f.left });
+    H.signY = 3.2;
+  } else if (t === 'chalet'){
+    Object.assign(H, { w:8.0, d:7.0, floors:1, h:3.8, rh:5.0, ridgeZ:true, chimney:true, garland:!f.left, body:0x9b6a45, roof:0x3a2f35, door:0x5a3424 });
+    H.signY = 2.95;
+  } else if (t === 'gingerbread'){
+    Object.assign(H, { w:7.2, d:6.2, floors:1, h:4.2, rh:3.2, ridgeZ:false, chimney:true, garland:!f.left, warm:false, body:0xb8743f, roof:0x6b3420, door:0xd8352f });
+    H.signY = 2.95;
   }
   const bc = hexColor(f.color), rc = hexColor(f.roof);
   if (bc !== null) H.body = bc;
   if (rc !== null) H.roof = rc;
-  H.top = H.type === 'doner' ? H.h + 4.6 : H.h + H.rh + 1.4;
+  H.top = (H.type === 'doner' || SHOPS[H.type]) ? H.h + 4.6 : H.type === 'tower' ? 15.2 : H.h + H.rh + 1.4;
   H.frontZ = H.z + H.facing*(H.d/2);
 }
 
@@ -918,11 +955,11 @@ function emitMansion(H, A, gar, smk, addTree){
   // портик с колоннами
   const colZ = z + f*(d/2 + 1.25);
   for (const px of [-2.15, -0.8, 0.8, 2.15]){
-    const c = new THREE.Mesh(GEO.col, MAT.white); c.scale.set(1, 5.4, 1); c.position.set(x+px, 0.3, colZ); c.castShadow = true; city.add(c);
+    A.colm.push({ p:[x+px, 0.3, colZ], s:[1, 5.4, 1] });
     if (!H.left) for (let i=0;i<14;i++){ const t = i/14, a = t*Math.PI*2*3 + px; gar.pos.push(x+px+Math.cos(a)*0.3, 0.6 + t*4.8, colZ+Math.sin(a)*0.3); const cc = LIGHTS_WARM[i%2]; gar.aColor.push(cc[0],cc[1],cc[2]); gar.aPhase.push(r()); gar.aSize.push(0.34); }
   }
-  const steps = new THREE.Mesh(GEO.box, MAT.white); steps.scale.set(cw+0.8, 0.3, 2.0); steps.position.set(x, 0, z + f*(d/2 + 1.0)); steps.receiveShadow = true; city.add(steps);
-  const ent = new THREE.Mesh(GEO.box, MAT.white); ent.scale.set(cw+0.5, 0.9, 1.6); ent.position.set(x, 5.7, z + f*(d/2 + 0.78)); ent.castShadow = true; city.add(ent);
+  A.body.push({ p:[x, 0, z + f*(d/2 + 1.0)], s:[cw+0.8, 0.3, 2.0], c:0xf4f7fd, o });
+  A.body.push({ p:[x, 5.7, z + f*(d/2 + 0.78)], s:[cw+0.5, 0.9, 1.6], c:0xf4f7fd, o });
   A.roof.push({ p:[x, 6.6, z + f*(d/2 + 0.78)], s:[1.75, 0.9, cw+0.6], q:Q90, c:H.roof, o });
   A.snow.push({ p:[x, 6.74, z + f*(d/2 + 0.78)], s:[1.6, 0.9, (cw+0.6)*0.95], q:Q90, o });
   // трубы с дымом
@@ -1008,9 +1045,184 @@ function emitDoner(H, A, gar, smk, addTree){
   const tp = along(-3.6, 0, -(d/2 + 2.2)); addTree(tp.x, tp.z, 0.7);
 }
 
+/* ---------- новые особые здания ---------- */
+const alongOf = H => (lx, y, lz) => new THREE.Vector3(H.x + (H.facing > 0 ? lx : -lx), y, H.z + H.facing*lz);
+const AX_X = new THREE.Vector3(1,0,0), AX_Y = new THREE.Vector3(0,1,0), AX_Z = new THREE.Vector3(0,0,1);
+const qAxis = (ax, a) => new THREE.Quaternion().setFromAxisAngle(ax, a);
+const stripeTexCache = {}, awnMatCache = {};
+function awnMat(key){
+  if (awnMatCache[key]) return awnMatCache[key];
+  const [a, b] = SHOPS[key].stripes;
+  const c = document.createElement('canvas'); c.width = 128; c.height = 16; const g = c.getContext('2d');
+  for (let i=0;i<8;i++){ g.fillStyle = i%2 ? b : a; g.fillRect(i*16,0,16,16); }
+  stripeTexCache[key] = new THREE.CanvasTexture(c);
+  return awnMatCache[key] = new THREE.MeshLambertMaterial({ map: stripeTexCache[key] });
+}
+function addCane(A, px, y0, pz, sc, sideX){
+  for (let i=0;i<6;i++) A.cyl.push({ p:[px, y0 + i*0.4*sc, pz], s:[0.2*sc, 0.4*sc, 0.2*sc], c: i%2 ? 0xfff4f4 : 0xd8352f });
+  A.htorus.push({ p:[px - sideX*0.45*sc, y0 + 2.4*sc, pz], s:[0.45*sc, 0.45*sc, 0.45*sc], c:0xd8352f });
+}
+function shopSign(H, S, along, rotY, signY, signZ, owner){
+  const tex = boardCanvas(640, 256, (g, W, Hh) => {
+    roundRect(g, 8, 8, W-16, Hh-16, 30); g.fillStyle = S.bg; g.fill(); g.lineWidth = 10; g.strokeStyle = S.edge; g.stroke();
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = S.ink; fitText(g, S.title, W-80, 112, 400, 'Lobster, Georgia, serif'); g.fillText(S.title, W/2, 104);
+    g.fillStyle = S.edge; fitText(g, owner, W-90, 46, 800, 'Manrope, Arial, sans-serif'); g.fillText(owner, W/2, 196);
+  });
+  const m = new THREE.MeshBasicMaterial({ map: tex }); glowMats.push(m);
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(6.0, 2.4), m);
+  board.position.copy(along(-0.6, signY, signZ + 0.14)); board.rotation.y = rotY; city.add(board);
+}
+function emitShop(H, A, gar, smk, addTree){
+  const S = SHOPS[H.type], { x, z, facing:f, w, d, h, idx:o } = H, r = rng(H.n*71 + 5), along = alongOf(H);
+  const front = z + f*(d/2 + 0.03), rotY = f > 0 ? 0 : Math.PI, sx = f > 0 ? 1 : -1;
+  // корпус, карниз, снег на крыше, цоколь и пилястры
+  A.body.push({ p:[x,0,z], s:[w,h,d], c:H.body, o });
+  A.body.push({ p:[x,h,z], s:[w+0.5,0.35,d+0.5], c:S.trim, o });
+  A.cap.push({ p:[x,h+0.35,z], s:[w+0.3,0.3,d+0.3] });
+  A.body.push({ p:[x,0,front + f*0.02], s:[w+0.1,0.55,0.12], c:S.trim, o });
+  for (const lx of [-w/2+0.25, w/2-0.25]){ const q = along(lx, 0, d/2 + 0.1); A.body.push({ p:[q.x,0,q.z], s:[0.5,h,0.22], c:S.trim, o }); }
+  // витрина (ночью горит, у закрытого — тёмная) и дверь
+  const lit = H.left ? [9,0,0] : [-0.5,0.05,0];
+  const wp = along(-1.3, 0, 0); A.win.push({ p:[wp.x, 2.05, front], s:[4.8, 2.3, 0.12], c:lit });
+  const dp = along(3.0, 0, 0);
+  A.door.push({ p:[dp.x, 1.15, front + f*0.04], s:[1.3, 2.3, 0.14], c:S.trim });
+  A.win.push({ p:[dp.x, 1.55, front + f*0.12], s:[0.7, 0.8, 0.06], c: H.left ? [9,0,0] : [-0.5,0.6,0] });
+  A.bulb.push({ p:[dp.x, 2.7, front + f*0.3], s:[0.16,0.16,0.16] });
+  // полосатые козырьки
+  (A.awn[H.type] = A.awn[H.type] || []).push({ p: along(-1.3, 3.55, d/2 + 0.7).toArray(), s:[5.6, 0.12, 1.5], q: qAxis(AX_X, 0.33*f) });
+  (A.awn[H.type] = A.awn[H.type] || []).push({ p: along(3.0, 2.95, d/2 + 0.45).toArray(), s:[1.9, 0.1, 0.9], q: qAxis(AX_X, 0.33*f) });
+  // вывеска на крыше
+  const signZ = d/2 - 0.7, signY = h + 0.65 + 1.25;
+  shopSign(H, S, along, rotY, signY, signZ, H.left ? 'закрыто' : 'у ' + (H.name || 'жителя №' + H.n));
+  const bp = along(-0.6, 0, signZ); A.body.push({ p:[bp.x, signY - 1.3, bp.z], s:[6.2, 2.6, 0.24], c:0x2a2f45, o });
+  for (const lx of [-2.8, 1.6]){ const q = along(lx, 0, signZ - 0.1); A.body.push({ p:[q.x, h + 0.35, q.z], s:[0.2, 0.95, 0.2], c:0x2a2f45, o }); }
+  if (!H.left){
+    const bz = z + f*(signZ + 0.3);
+    lampLights(gar, x - 3.6, x + 2.4, signY + 1.38, bz, 0, LIGHTS_WARM, H.n);
+    lampLights(gar, x - 3.6, x + 2.4, signY - 1.38, bz, 0, LIGHTS_WARM, H.n + 1);
+  }
+  // что стоит на крыше
+  const pp = along(3.0, 0, -1.5), y0 = h + 0.65;
+  if (S.prop === 'pretzel'){
+    A.cyl.push({ p:[pp.x, y0, pp.z], s:[0.1, 1.0, 0.1], c:0x2a2f45 });
+    A.torus.push({ p:[pp.x, y0 + 1.75, pp.z], s:[0.8, 0.8, 0.8], c:0xc98a3c });
+    const vp = along(-3.0, 0, -d*0.25);
+    A.chim.push({ p:[vp.x, h+0.35, vp.z], s:[0.75,1.5,0.75] }); A.cap.push({ p:[vp.x, h+1.85, vp.z], s:[0.95,0.25,0.95] });
+    if (!H.left) for (let i=0;i<6;i++){ smk.pos.push(vp.x, h+2.1, vp.z); smk.aPhase.push(i/6); }
+  } else if (S.prop === 'cup'){
+    A.cyl.push({ p:[pp.x, y0, pp.z], s:[1.25, 0.12, 1.25], c:0xf6f2ea });
+    A.cyl.push({ p:[pp.x, y0 + 0.12, pp.z], s:[0.85, 1.5, 0.85], c:0xf6f2ea });
+    A.cyl.push({ p:[pp.x, y0 + 1.58, pp.z], s:[0.76, 0.06, 0.76], c:0x4a2a1a });
+    A.htorus.push({ p:[pp.x + sx*0.85, y0 + 0.85, pp.z], s:[0.42, 0.42, 0.42], q: qAxis(AX_Z, -sx*Math.PI/2), c:0xf6f2ea });
+    if (!H.left) for (let i=0;i<5;i++){ smk.pos.push(pp.x, y0 + 1.7, pp.z); smk.aPhase.push(i/5); }
+  } else if (S.prop === 'gift'){
+    A.body.push({ p:[pp.x, y0, pp.z], s:[1.9, 1.9, 1.9], c:0xd8352f, o });
+    A.body.push({ p:[pp.x, y0, pp.z], s:[2.0, 1.92, 0.36], c:0xffd36a, o });
+    A.body.push({ p:[pp.x, y0, pp.z], s:[0.36, 1.92, 2.0], c:0xffd36a, o });
+    for (const a of [-0.7, 0.7]) A.torus.push({ p:[pp.x + a*0.5, y0 + 2.25, pp.z], s:[0.38, 0.38, 0.38], q: qAxis(AX_Y, a), c:0xffd36a });
+  } else if (S.prop === 'cane'){
+    addCane(A, pp.x + sx*0.4, y0, pp.z, 1.0, sx);
+    addCane(A, pp.x - sx*1.0, y0, pp.z + 0.6, 0.75, -sx);
+  }
+  // ёлочки у входа, дорожка
+  for (const lx of [-4.0]){ const q = along(lx, 0, d/2 + 1.3); addTree(q.x, q.z, 0.5); }
+  const pathEnd = z + f*8.4;
+  A.path.push({ p:[dp.x, 0.045, (front + pathEnd)/2], s:[1.6, 1, Math.abs(pathEnd - front)] });
+  const tp = along(-3.6, 0, -(d/2 + 2.2)); addTree(tp.x, tp.z, 0.7);
+}
+function emitTower(H, A, gar, smk, addTree){
+  emitBasic(H, A, gar, smk, addTree);
+  const { d, w, facing:f } = H, r = rng(H.n*17 + 3), along = alongOf(H);
+  const tr = 1.35, th = 9.6, c = along(w/2 + 0.55, 0, d/2 - 1.3);
+  const light = new THREE.Color(H.body).lerp(new THREE.Color(0xffffff), 0.22).getHex();
+  A.cyl.push({ p:[c.x, 0, c.z], s:[tr, th, tr], c:light });
+  A.cyl.push({ p:[c.x, th - 0.3, c.z], s:[tr + 0.14, 0.32, tr + 0.14], c:0xf4f7fd });
+  A.cone.push({ p:[c.x, th, c.z], s:[tr + 0.55, 3.8, tr + 0.55], c:H.roof });
+  A.cone.push({ p:[c.x, th + 3.8 - 1.65, c.z], s:[0.92, 1.66, 0.92], c:0xf3f7ff });
+  A.cyl.push({ p:[c.x, th + 3.7, c.z], s:[0.05, 1.1, 0.05], c:0x2a2f45 });
+  A.gold.push({ p:[c.x, th + 4.95, c.z], s:[0.24, 0.24, 0.24] });
+  const wz = c.z + f*(tr + 0.02);
+  for (const y of [2.2, 4.9, 7.6]) A.win.push({ p:[c.x, y, wz], s:[0.8, 1.05, 0.12], c:[H.left ? 9 : 0.1 + r()*0.6, r(), r()*0.6] });
+  if (!H.left) for (let i=0;i<44;i++){ const t = i/44, a = t*Math.PI*2*3.2; gar.pos.push(c.x + Math.cos(a)*(tr + 0.14), 0.8 + t*(th - 1.4), c.z + Math.sin(a)*(tr + 0.14)); const cc = LIGHTS_WARM[i%2]; gar.aColor.push(cc[0],cc[1],cc[2]); gar.aPhase.push(r()); gar.aSize.push(0.38); }
+}
+function emitChalet(H, A, gar, smk, addTree){
+  const { x, z, facing:f, w, d, h, rh, idx:o } = H, r = rng(H.n*29 + 1), along = alongOf(H);
+  const rd = d + 1.6, rw = w + 1.3, fw = z + f*(d/2 + 0.03), fg = z + f*(rd/2 + 0.03);
+  const win = (px, py, pz, sx, sy, sz) => A.win.push({ p:[px,py,pz], s:[sx,sy,sz], c:[H.left ? 9 : 0.1 + r()*0.5, 0.2 + r()*0.6, r()*0.5] });
+  A.body.push({ p:[x,0,z], s:[w,h,d], c:H.body, o });
+  A.body.push({ p:[x,0,z], s:[w+0.16,0.95,d+0.16], c:0x8a8f9e, o });
+  A.roof.push({ p:[x,h,z], s:[rd, rh, rw], q:Q90, c:H.roof, o });
+  A.snow.push({ p:[x,h+0.3,z], s:[rd-0.3, rh, rw*0.98], q:Q90, o });
+  // стеклянный фронтон
+  for (const px of [-2.1, -0.7, 0.7, 2.1]) win(x+px, h + 1.0, fg, 1.15, 1.25, 0.12);
+  for (const px of [-0.72, 0.72]) win(x+px, h + 2.55, fg, 1.1, 1.2, 0.12);
+  win(x, h + 3.85, fg, 0.85, 0.9, 0.12);
+  // первый этаж
+  for (const px of [-2.5, 2.5]) win(x+px, 1.75, fw, 1.7, 1.4, 0.12);
+  A.door.push({ p:[x, 1.1, fw + f*0.04], s:[1.3, 2.2, 0.14], c:H.door });
+  A.bulb.push({ p:[x + 1.0, 2.5, fw + f*0.25], s:[0.16,0.16,0.16] });
+  for (const s of [-1,1]) win(x + s*(w/2 + 0.03), 2.0, z, 0.12, 1.3, 1.5);
+  // балкон
+  const bz = z + f*(d/2 + 0.8);
+  A.body.push({ p:[x, h - 0.3, bz], s:[w+0.4, 0.3, 1.6], c:0x7a4f32, o });
+  A.cap.push({ p:[x, h, bz], s:[w+0.3, 0.1, 1.5] });
+  const rz = z + f*(d/2 + 1.55);
+  A.body.push({ p:[x, h + 0.95, rz], s:[w+0.4, 0.14, 0.14], c:0x7a4f32, o });
+  for (let i=0;i<=10;i++) A.body.push({ p:[x - (w+0.2)/2 + i*(w+0.2)/10, h, rz], s:[0.1, 0.95, 0.1], c:0x7a4f32, o });
+  for (const s of [-1,1]) A.body.push({ p:[x + s*(w/2), 0, z + f*(d/2 + 1.45)], s:[0.28, h - 0.3, 0.28], c:0x7a4f32, o });
+  // труба
+  const cx = x - w*0.22, cz = z - f*d*0.2, cy = h + rh*0.3, ch = rh*0.75 + 0.9;
+  A.chim.push({ p:[cx, cy, cz], s:[0.8, ch, 0.8] }); A.cap.push({ p:[cx, cy+ch, cz], s:[1.0, 0.28, 1.0] });
+  if (!H.left) for (let i=0;i<5;i++){ smk.pos.push(cx, cy+ch+0.2, cz); smk.aPhase.push(i/5 + r()*0.1); }
+  // гирлянды по балкону и по скатам
+  if (H.garland){
+    lampLights(gar, x - (w+0.4)/2, x + (w+0.4)/2, h + 1.0, rz + f*0.1, 0.25, LIGHTS_WARM, H.n);
+    const gz = z + f*(rd/2 + 0.1), L = rw/2, n = Math.round(Math.hypot(L, rh)/0.42);
+    for (const s of [-1,1]) for (let i=0;i<n;i++){ const t = i/n; gar.pos.push(x + s*L*(1-t), h + rh*t + 0.05, gz); const c = LIGHTS_WARM[i%2]; gar.aColor.push(c[0],c[1],c[2]); gar.aPhase.push(r()); gar.aSize.push(0.42); }
+  }
+  const pathEnd = z + f*8.4;
+  A.path.push({ p:[x, 0.045, (fw + pathEnd)/2], s:[1.6, 1, Math.abs(pathEnd - fw)] });
+  addTree(x - w/2 - 0.6, z - f*(d/2 + 1.6), 0.9); addTree(x + w/2 + 0.3, z - f*(d/2 + 2.4), 0.75);
+}
+function emitGingerbread(H, A, gar, smk, addTree){
+  emitBasic(H, A, gar, smk, addTree);
+  const { x, z, facing:f, w, d, h, rh } = H, r = rng(H.n*13 + 9), along = alongOf(H), sx = f > 0 ? 1 : -1;
+  // глазурь: по карнизу, капли, углы, над дверью
+  for (const s of [1,-1]){
+    const ez = z + s*((d+0.9)/2 - 0.05);
+    A.cap.push({ p:[x, h - 0.32, ez], s:[w+0.85, 0.3, 0.24] });
+    for (let px = -w/2 - 0.2; px <= w/2 + 0.25; px += 0.55) A.cap.push({ p:[x + px, h - 0.32 - 0.25 - (Math.round(px*3)%2 ? 0.15 : 0), ez], s:[0.2, 0.3, 0.2] });
+  }
+  for (const s1 of [-1,1]) for (const s2 of [-1,1]) A.cap.push({ p:[x + s1*(w/2), 0, z + s2*(d/2)], s:[0.3, h, 0.3] });
+  const fz = z + f*(d/2 + 0.1);
+  A.cap.push({ p:[x, 2.25, fz], s:[1.7, 0.24, 0.2] });
+  A.cap.push({ p:[x, 0, fz], s:[w + 0.1, 0.28, 0.2] });
+  // конфеты-пуговки на фасаде и мармелад на коньке
+  if (!H.left){
+    for (let i=0;i<7;i++){ const px = x - w*0.42 + i*(w*0.84/6); const c = LIGHTS_MULTI[i % LIGHTS_MULTI.length]; gar.pos.push(px, 3.78, fz + f*0.08); gar.aColor.push(c[0],c[1],c[2]); gar.aPhase.push(r()); gar.aSize.push(0.62); }
+    for (let i=0;i<6;i++){ const px = x - w*0.42 + i*(w*0.84/5); const c = LIGHTS_MULTI[(i+2) % LIGHTS_MULTI.length]; gar.pos.push(px, h + rh + 0.45, z); gar.aColor.push(c[0],c[1],c[2]); gar.aPhase.push(r()); gar.aSize.push(1.0); }
+  }
+  // леденцы у дорожки и карамельная трость у двери
+  for (const [lx, col] of [[-1.6, 0xff5a8a], [1.6, 0x7fd4ff]]){
+    const q = along(lx, 0, d/2 + 2.4);
+    A.cyl.push({ p:[q.x, 0, q.z], s:[0.07, 1.5, 0.07], c:0xf6f2ea });
+    A.cyl.push({ p:[q.x, 1.85, q.z - 0.07], s:[0.62, 0.14, 0.62], q: qAxis(AX_X, Math.PI/2), c:col });
+    A.cyl.push({ p:[q.x, 1.85, q.z - 0.06], s:[0.3, 0.16, 0.3], q: qAxis(AX_X, Math.PI/2), c:0xffffff });
+  }
+  const cp = along(1.25, 0, d/2 + 0.55); addCane(A, cp.x, 0, cp.z, 0.75, sx);
+}
+
 function emitHouse(H, A, gar, smk, addTree){
   if (H.type === 'mansion') return emitMansion(H, A, gar, smk, addTree);
   if (H.type === 'doner') return emitDoner(H, A, gar, smk, addTree);
+  if (SHOPS[H.type]) return emitShop(H, A, gar, smk, addTree);
+  if (H.type === 'tower') return emitTower(H, A, gar, smk, addTree);
+  if (H.type === 'chalet') return emitChalet(H, A, gar, smk, addTree);
+  if (H.type === 'gingerbread') return emitGingerbread(H, A, gar, smk, addTree);
+  return emitBasic(H, A, gar, smk, addTree);
+}
+function emitBasic(H, A, gar, smk, addTree){
   const { x, z, facing:f, w, d, h, rh } = H;
   const r = rng(H.n*31 + 7);
   A.body.push({ p:[x,0,z], s:[w,h,d], c:H.body, o:H.idx });
@@ -1370,8 +1582,9 @@ function updateCamera(dt){
     cine.t += dt;
     if (cine.house){
       const h = cine.house; cine.a += dt*0.22;
-      camLook.set(h.x, h.h*0.6, h.z);
-      camera.position.set(h.x + Math.sin(cine.a)*20, h.h + 6 + Math.sin(cine.t*0.4)*2, h.z + Math.cos(cine.a)*20);
+      const cr = 15 + Math.max(h.w, h.d, h.top)*0.85;
+      camLook.set(h.x, h.top*0.42, h.z);
+      camera.position.set(h.x + Math.sin(cine.a)*cr, h.top*0.55 + 5 + Math.sin(cine.t*0.4)*2, h.z + Math.cos(cine.a)*cr);
     } else {
       cine.a += dt*0.05;
       const rad = cityHalf*0.95 + 30;
@@ -1507,31 +1720,82 @@ function showHint(){
 function hideHint(){ if (hintShown){ $('hint').style.opacity = '0'; hintShown = false; } }
 
 /* ============================== сторис ============================== */
+// отдельный кадр 1080×1920: вечер, ракурс 3/4 на фасад, дом в центре
+const STORY_FOV = 52;
+function storyShot(h){
+  // камера над дорогой перед домом, чуть сбоку и сверху — чтобы не упереться в дом напротив
+  const size = Math.max(h.w, h.d, h.top);
+  const Dh = 9 + size*0.9;
+  const side = (h.n % 2 ? 1 : -1)*0.48;
+  const dx = Math.sin(side), dz = h.facing*Math.cos(side);
+  return { pos: new THREE.Vector3(h.x + dx*Dh, h.top*0.5 + Dh*0.55, h.z + dz*Dh), target: new THREE.Vector3(h.x, h.top*0.38, h.z) };
+}
 function makeStory(h){
-  renderFrame();
-  const src = renderer.domElement;
-  const out = document.createElement('canvas'); out.width = 1080; out.height = 1920; const x = out.getContext('2d');
-  const sw = src.width, sh = src.height, want = 9/16;
-  let cw = sw, ch = sh; if (sw/sh > want) cw = sh*want; else ch = sw/want;
-  x.drawImage(src, (sw-cw)/2, (sh-ch)/2, cw, ch, 0, 0, 1080, 1920);
-  let g = x.createLinearGradient(0,0,0,460); g.addColorStop(0,'rgba(8,12,36,.8)'); g.addColorStop(1,'rgba(8,12,36,0)'); x.fillStyle = g; x.fillRect(0,0,1080,460);
-  x.textBaseline = 'top'; x.fillStyle = '#ff6a5f'; x.font = '400 104px Lobster, Georgia, serif'; x.fillText(CITY_NAME, 72, 104);
-  x.fillStyle = '#e9eefc'; x.font = '700 40px Manrope, Arial, sans-serif'; x.fillText('каждый подписчик — свой дом', 76, 236);
-  const cy = 1360;
-  roundRect(x, 60, cy, 960, 470, 44); x.fillStyle = 'rgba(247,250,255,.96)'; x.fill();
-  x.save(); roundRect(x, 60, cy, 960, 470, 44); x.clip(); x.fillStyle = '#d8352f'; x.fillRect(60, cy, 960, 96); x.restore();
-  x.fillStyle = '#fff'; x.font = '400 56px Lobster, Georgia, serif'; x.fillText('Прописка', 104, cy + 18);
+  const W = 1080, HH = 1920;
+  const saved = { pos: camera.position.clone(), q: camera.quaternion.clone(), look: camLook.clone(), ring: !!(selRing && selRing.visible), dpr: renderer.getPixelRatio(), fov: camera.fov };
+  let img = null;
+  try{
+    const shot = storyShot(h);
+    camera.position.copy(shot.pos); camLook.copy(shot.target); camera.lookAt(camLook);
+    camera.fov = STORY_FOV; camera.aspect = W/HH; camera.setViewOffset(W, HH, 0, HH*0.07, W, HH); camera.updateProjectionMatrix();
+    renderer.setPixelRatio(1); renderer.setSize(W, HH, false);
+    if (composer){ composer.setPixelRatio(1); composer.setSize(W, HH); }
+    const sc = scaleUniform(); pointMats.forEach(m => m.uniforms.uScale.value = sc);
+    stars.material.uniforms.uPx.value = 1;
+    if (selRing) selRing.visible = false;
+    applyTime(20.7, clockT);
+    sky.position.copy(camera.position); stars.position.copy(camera.position);
+    aurora.group.position.set(camera.position.x, 0, camera.position.z);
+    moon.position.copy(camera.position).addScaledVector(moonDir, 2000);
+    snow.material.uniforms.uCenter.value.set(camLook.x, 50, camLook.z);
+    dir.position.copy(camLook).addScaledVector(lightDir, 200); dir.target.position.copy(camLook); dir.target.updateMatrixWorld();
+    updateSigns();
+    renderFrame(); renderFrame();
+    img = document.createElement('canvas'); img.width = W; img.height = HH;
+    img.getContext('2d').drawImage(renderer.domElement, 0, 0, W, HH);
+  } finally {
+    camera.fov = saved.fov; camera.clearViewOffset();
+    camera.position.copy(saved.pos); camera.quaternion.copy(saved.q); camLook.copy(saved.look);
+    renderer.setPixelRatio(saved.dpr); onResize();
+    if (selRing) selRing.visible = saved.ring;
+    updateSigns();
+  }
+  const out = document.createElement('canvas'); out.width = W; out.height = HH; const x = out.getContext('2d');
+  x.drawImage(img, 0, 0);
+  // затемнение сверху и снизу, лёгкая виньетка
+  let g = x.createLinearGradient(0,0,0,520); g.addColorStop(0,'rgba(8,12,36,.85)'); g.addColorStop(1,'rgba(8,12,36,0)'); x.fillStyle = g; x.fillRect(0,0,W,520);
+  g = x.createLinearGradient(0,1180,0,HH); g.addColorStop(0,'rgba(8,12,36,0)'); g.addColorStop(1,'rgba(8,12,36,.75)'); x.fillStyle = g; x.fillRect(0,1180,W,HH-1180);
+  g = x.createRadialGradient(W/2, HH*0.45, HH*0.3, W/2, HH*0.45, HH*0.8); g.addColorStop(0,'rgba(8,12,36,0)'); g.addColorStop(1,'rgba(8,12,36,.45)'); x.fillStyle = g; x.fillRect(0,0,W,HH);
+  // шапка
+  x.textBaseline = 'top'; x.textAlign = 'left';
+  x.shadowColor = 'rgba(0,0,0,.45)'; x.shadowBlur = 24;
+  x.fillStyle = '#ff6a5f'; x.font = '400 112px Lobster, Georgia, serif'; x.fillText(CITY_NAME, 72, 96);
+  x.fillStyle = '#e9eefc'; x.font = '700 42px Manrope, Arial, sans-serif'; x.fillText('каждый подписчик — свой дом', 76, 236);
+  x.shadowBlur = 0;
+  // карточка «Прописка»
+  const cy = 1330, ch = 500;
+  x.save(); x.shadowColor = 'rgba(0,0,0,.45)'; x.shadowBlur = 40; roundRect(x, 60, cy, 960, ch, 44); x.fillStyle = 'rgba(247,250,255,.97)'; x.fill(); x.restore();
+  x.save(); roundRect(x, 60, cy, 960, ch, 44); x.clip(); x.fillStyle = '#d8352f'; x.fillRect(60, cy, 960, 96); x.restore();
+  x.fillStyle = '#fff'; x.font = '400 58px Lobster, Georgia, serif'; x.fillText('Прописка', 104, cy + 16);
+  const kind = TYPE_NAMES[h.type];
+  if (kind){ x.textAlign = 'right'; x.font = '800 30px Manrope, Arial, sans-serif'; x.fillStyle = '#ffe2a8'; x.fillText(kind.toUpperCase(), 976, cy + 34); x.textAlign = 'left'; }
   const nm = h.name || 'Житель №' + h.n;
-  x.fillStyle = '#152043'; fitText(x, nm, 600, 76, 800, 'Manrope, Arial, sans-serif'); x.fillText(nm, 104, cy + 150);
-  x.fillStyle = '#1f6a52'; fitText(x, `${h.street}, дом ${h.number}`, 600, 42, 800, 'Manrope, Arial, sans-serif'); x.fillText(`${h.street}, дом ${h.number}`, 106, cy + 262);
-  x.fillStyle = '#5a6688'; x.font = '700 36px Manrope, Arial, sans-serif'; x.fillText('Найди свой дом — ссылка в профиле', 106, cy + 340);
-  x.save(); x.translate(880, cy + 230); x.rotate(-0.21);
-  x.strokeStyle = '#d8352f'; x.lineWidth = 7; x.beginPath(); x.arc(0,0,118,0,Math.PI*2); x.stroke();
-  x.lineWidth = 3; x.beginPath(); x.arc(0,0,100,0,Math.PI*2); x.stroke();
+  x.fillStyle = '#152043'; fitText(x, nm, 590, 78, 800, 'Manrope, Arial, sans-serif'); x.fillText(nm, 104, cy + 140);
+  const addr = `${h.street}, дом ${h.number}`;
+  x.fillStyle = '#1f6a52'; fitText(x, addr, 590, 42, 800, 'Manrope, Arial, sans-serif'); x.fillText(addr, 106, cy + 248);
+  const dt = h.date ? new Date(h.date.replace(' ','T') + 'Z') : null;
+  const since = dt && !isNaN(dt) ? `в городе с ${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]} ${dt.getUTCFullYear()}` : 'житель города';
+  x.fillStyle = '#5a6688'; fitText(x, since, 590, 36, 700, 'Manrope, Arial, sans-serif'); x.fillText(since, 106, cy + 310);
+  x.strokeStyle = 'rgba(21,32,67,.12)'; x.lineWidth = 2; x.beginPath(); x.moveTo(104, cy + 380); x.lineTo(976, cy + 380); x.stroke();
+  x.fillStyle = '#d8352f'; x.font = '800 36px Manrope, Arial, sans-serif'; x.fillText('Найди свой дом — ссылка в профиле', 104, cy + 412);
+  // печать
+  x.save(); x.translate(860, cy + 228); x.rotate(-0.21);
+  x.strokeStyle = '#d8352f'; x.lineWidth = 7; x.beginPath(); x.arc(0,0,112,0,Math.PI*2); x.stroke();
+  x.lineWidth = 3; x.beginPath(); x.arc(0,0,95,0,Math.PI*2); x.stroke();
   x.fillStyle = '#d8352f'; x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.font = '800 22px Manrope, Arial, sans-serif'; x.fillText('Ж И Т Е Л Ь', 0, -52);
-  fitText(x, '№' + fmtNum(h.n), 170, 64, 800, 'Manrope, Arial, sans-serif'); x.fillText('№' + fmtNum(h.n), 0, 4);
-  x.font = '700 24px Manrope, Arial, sans-serif'; x.fillText('из ' + fmtNum(total), 0, 56);
+  x.font = '800 22px Manrope, Arial, sans-serif'; x.fillText('Ж И Т Е Л Ь', 0, -50);
+  fitText(x, '№' + fmtNum(h.n), 160, 62, 800, 'Manrope, Arial, sans-serif'); x.fillText('№' + fmtNum(h.n), 0, 4);
+  x.font = '700 24px Manrope, Arial, sans-serif'; x.fillText('из ' + fmtNum(total), 0, 54);
   x.restore();
   $('storyImg').src = out.toDataURL('image/jpeg', 0.92);
   $('storyModal').hidden = false;
