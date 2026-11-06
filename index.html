@@ -280,6 +280,8 @@ const ROOF = [0x6b3a45,0x3f4c75,0x4f6650,0x7d3b3b,0x3b4157,0x5a4a7a];
 const DOOR = [0x7a4632,0xb23a3a,0x2f6b55,0x3d4f8a,0x8a5a2b];
 const LIGHTS_MULTI = [[1.0,0.25,0.22],[1.0,0.78,0.25],[0.35,0.95,0.45],[0.35,0.6,1.0],[1.0,0.45,0.8]];
 const LIGHTS_WARM = [[1.0,0.82,0.5],[1.0,0.72,0.42]];
+const LIGHTS_ICE = [[0.6,0.85,1.0],[1.0,1.0,1.0],[0.45,0.7,1.0]];
+const SHUTTERS = [0x2f3b63,0x2f6b45,0x7d3b3b,0xf4f7fd,0x3a3a44,0x5b8fd6];
 const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 
 const isCoarse = matchMedia('(pointer: coarse)').matches;
@@ -556,6 +558,8 @@ const GEO = {
   ucone: new THREE.ConeGeometry(1,1,18).translate(0,0.5,0),
   torus: new THREE.TorusGeometry(1,0.34,10,22),
   htorus: new THREE.TorusGeometry(1,0.42,8,14,Math.PI),
+  usph: new THREE.SphereGeometry(1,16,12),
+  ufrus: new THREE.CylinderGeometry(0.78,1,1,16).translate(0,0.5,0),
 };
 function radialTex(inner, outer){
   const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
@@ -733,7 +737,7 @@ function buildCity(list){
   cityHalf = (R + 0.5)*P;
 
   const A = { body:[], roof:[], snow:[], cap:[], door:[], chim:[], win:[], tree:[], bank:[], pole:[], bulb:[], pool:[], path:[],
-              cyl:[], cone:[], torus:[], htorus:[], colm:[], gold:[], awn:{} };
+              cyl:[], cone:[], torus:[], htorus:[], colm:[], gold:[], awn:{}, sph:[], frus:[] };
   const gar = { pos:[], aColor:[], aPhase:[], aSize:[] };
   const smk = { pos:[], aPhase:[] };
   const gr = rng(4242);
@@ -834,6 +838,8 @@ function buildCity(list){
   instanced(GEO.htorus, MAT.body, A.htorus, { cast:true });
   instanced(GEO.col, MAT.white, A.colm, { cast:true });
   instanced(GEO.bulb, MAT.star, A.gold);
+  instanced(GEO.usph, MAT.body, A.sph, { cast:true });
+  instanced(GEO.ufrus, MAT.body, A.frus, { cast:true });
   for (const k in A.awn) instanced(GEO.cbox, awnMat(k), A.awn[k], { cast:true });
   pointsFrom(gar, garlandMat, [['aColor',3],['aPhase',1],['aSize',1]]);
   pointsFrom(smk, smokeMat, [['aPhase',1]]);
@@ -876,23 +882,65 @@ function makeHouse(f, lot){
 }
 
 /* ---------- особые здания: задаются полем "house" в followers.json ---------- */
-const TYPE_NAMES = { big:'Большой дом', mansion:'Особняк', doner:'Донерная', bakery:'Пекарня', cafe:'Кофейня', gifts:'Магазин подарков',
-  sweets:'Кондитерская', tower:'Дом с башней', chalet:'Шале', gingerbread:'Пряничный домик' };
-// магазины: цвета, вывеска, полоски козырька, что стоит на крыше
+// магазины: варианты цвета стен, вывеска, варианты полосок козырька, что стоит на крыше
 const SHOPS = {
-  bakery: { title:'Пекарня',  body:0xf4dfc0, trim:0x7a4a2a, bg:'#6b3d22', ink:'#ffe7bf', edge:'#f2b35a', stripes:['#e9a23b','#fff4e6'], prop:'pretzel' },
-  cafe:   { title:'Кофейня',  body:0xe9dccb, trim:0x2e4a3f, bg:'#2e4a3f', ink:'#f6ecd8', edge:'#d9b26a', stripes:['#2f6b55','#f6efe2'], prop:'cup' },
-  gifts:  { title:'Подарки',  body:0xdfe8f6, trim:0x2f3b63, bg:'#2f3b8a', ink:'#ffffff', edge:'#ffd36a', stripes:['#3d5fd6','#ffffff'], prop:'gift' },
-  sweets: { title:'Сладости', body:0xf8dbe6, trim:0x8a2f55, bg:'#c2306a', ink:'#fff3f8', edge:'#ffffff', stripes:['#e2477f','#fff4f8'], prop:'cane' },
+  bakery: { title:'Пекарня',  bodies:[0xf4dfc0,0xf1e6d6], trim:0x7a4a2a, bg:'#6b3d22', ink:'#ffe7bf', edge:'#f2b35a', stripes:[['#e9a23b','#fff4e6'],['#b5523f','#fff4e6']], prop:'pretzel' },
+  cafe:   { title:'Кофейня',  bodies:[0xe9dccb,0xdfe6e0], trim:0x2e4a3f, bg:'#2e4a3f', ink:'#f6ecd8', edge:'#d9b26a', stripes:[['#2f6b55','#f6efe2'],['#6b4a32','#f6efe2']], prop:'cup' },
+  gifts:  { title:'Подарки',  bodies:[0xdfe8f6,0xf4e6ee], trim:0x2f3b63, bg:'#2f3b8a', ink:'#ffffff', edge:'#ffd36a', stripes:[['#3d5fd6','#ffffff'],['#d8352f','#ffffff']], prop:'gift' },
+  sweets: { title:'Сладости', bodies:[0xf8dbe6,0xfdf0d8], trim:0x8a2f55, bg:'#c2306a', ink:'#fff3f8', edge:'#ffffff', stripes:[['#e2477f','#fff4f8'],['#9b5fd6','#fff4f8']], prop:'cane' },
+  pizza:  { title:'Пиццерия', bodies:[0xf3e3c8,0xe8d2c0], trim:0x8a2a1e, bg:'#b8261c', ink:'#fff3e0', edge:'#ffd36a', stripes:[['#d8352f','#fff4e6'],['#2f8a4a','#fff4e6']], prop:'pizza' },
+  burger: { title:'Бургерная', bodies:[0xf2e6d2,0xd9e3ec], trim:0x3a2a20, bg:'#3a2a20', ink:'#ffd36a', edge:'#ff9f2e', stripes:[['#ff9f2e','#3a2a20'],['#e2b44f','#fff4e6']], prop:'burger' },
+  flowers:{ title:'Цветы',    bodies:[0xe9f3e6,0xf6e8ef], trim:0x2f6b45, bg:'#2f6b45', ink:'#ffffff', edge:'#ff8fb8', stripes:[['#ff8fb8','#ffffff'],['#7cc576','#ffffff']], prop:'flowers' },
+  books:  { title:'Книжный',  bodies:[0xe6dccb,0xd6dbe8], trim:0x4b2e5c, bg:'#4b2e5c', ink:'#f5ecd8', edge:'#e2b44f', stripes:[['#4b2e5c','#f5ecd8'],['#2f3b63','#f5ecd8']], prop:'books' },
+  barber: { title:'Барбершоп', bodies:[0x2c3140,0xe7e9ee], trim:0x1b1e28, bg:'#1b1e28', ink:'#ffffff', edge:'#d8352f', stripes:[['#d8352f','#ffffff'],['#2f5fd6','#ffffff']], prop:'pole' },
+  sushi:  { title:'Суши',     bodies:[0xf2f0ea,0xe9e1d4], trim:0x22252e, bg:'#22252e', ink:'#ffffff', edge:'#ff5a4f', stripes:[['#22252e','#ff5a4f'],['#ff5a4f','#ffffff']], prop:'roll' },
+  gym:    { title:'Спортзал', bodies:[0xdfe3ea,0x3a3f4d], trim:0x1b1e28, bg:'#ff5a1f', ink:'#ffffff', edge:'#1b1e28', stripes:[['#ff5a1f','#1b1e28'],['#1b1e28','#ffffff']], prop:'dumbbell' },
+  games:  { title:'Игры',     bodies:[0x2a2450,0x1f2a44], trim:0x7a3cff, bg:'#14102a', ink:'#7ef9ff', edge:'#ff4fd8', stripes:[['#7a3cff','#14102a'],['#ff4fd8','#14102a']], prop:'gamepad' },
+  tea:    { title:'Чайная',   bodies:[0xf1e9d8,0xe2eadf], trim:0x6b2f2f, bg:'#6b2f2f', ink:'#f8eccb', edge:'#d9b26a', stripes:[['#6b2f2f','#f8eccb'],['#2f6b55','#f8eccb']], prop:'teapot' },
+  decor:  { title:'Ёлочные игрушки', bodies:[0x1f4a3a,0x2a2f5a], trim:0xc9a24a, bg:'#1f4a3a', ink:'#ffe2a8', edge:'#ff5a5a', stripes:[['#d8352f','#1f4a3a'],['#c9a24a','#1f4a3a']], prop:'ornaments' },
+  hats:   { title:'Шляпы',    bodies:[0x3a2a3f,0xe9e1d4], trim:0x1c1c22, bg:'#1c1c22', ink:'#f4efe6', edge:'#c9a24a', stripes:[['#1c1c22','#f4efe6'],['#6b2f4a','#f4efe6']], prop:'tophat' },
+  toys:   { title:'Игрушки',  bodies:[0xfdf1d6,0xe3f0fb], trim:0x2f6fd6, bg:'#ffd34d', ink:'#2f3b8a', edge:'#d8352f', stripes:[['#d8352f','#ffd34d'],['#2f6fd6','#ffd34d']], prop:'toys' },
 };
-// порядок особых зданий для первых жителей (если в followers.json не задан свой "house")
-const AUTO_TYPES = ['mansion','bakery','tower','gingerbread','chalet','cafe','big','gifts','tower','mansion','sweets','chalet'];
+/*@types-start — этот блок читает редактор edit.html, не переименовывай */
+const TYPE_NAMES = { big:'Большой дом', mansion:'Особняк', doner:'Донерная', bakery:'Пекарня', cafe:'Кофейня', gifts:'Магазин подарков',
+  sweets:'Кондитерская', tower:'Дом с башней', chalet:'Шале', gingerbread:'Пряничный домик',
+  izba:'Изба', modern:'Современный дом', castle:'Мини-замок', igloo:'Иглу', windmill:'Мельница', barn:'Ферма', ice:'Ледяной домик',
+  pizza:'Пиццерия', burger:'Бургерная', flowers:'Цветочный магазин', books:'Книжный', barber:'Барбершоп', sushi:'Суши-бар',
+  gym:'Спортзал', games:'Игровой клуб', tea:'Чайная', toys:'Магазин игрушек',
+  white:'Белый дом', decor:'Ёлочные игрушки', hats:'Магазин шляп', canteen:'Столовая', restaurant:'Ресторан' };
+const HOUSE_GROUPS = {
+  'Дома': ['big','mansion','white','tower','chalet','gingerbread','izba','modern','castle','igloo','windmill','barn','ice'],
+  'Бизнесы': ['doner','bakery','cafe','gifts','sweets','pizza','burger','flowers','books','barber','sushi','gym','games','tea','toys','decor','hats','canteen','restaurant'],
+};
+// особые здания для первых жителей: колода из всех типов, перемешанная раз и навсегда — одинаковые не стоят рядом.
+// Жители до №AUTO_LOCK сохраняют здания, которые уже получили; новые типы раздаются со следующих номеров.
+const AUTO_POOL_V1 = ['mansion','big','tower','chalet','gingerbread','izba','modern','castle','igloo','windmill','barn','ice',
+  'bakery','cafe','gifts','sweets','pizza','burger','flowers','books','barber','sushi','gym','games','tea','toys'];
+const AUTO_POOL = AUTO_POOL_V1.concat(['white','decor','hats','canteen','restaurant']);
+const AUTO_LOCK = 69;
+const AUTO_ORDER = (() => {
+  const deal = (pool, seed, n, out) => {
+    const r = rng(seed);
+    while (out.length < n){
+      const bag = pool.slice();
+      for (let i = bag.length - 1; i > 0; i--){ const j = Math.floor(r()*(i+1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+      if (out.length && bag[0] === out[out.length-1]) bag.push(bag.shift());
+      out.push(...bag);
+    }
+    return out;
+  };
+  const out = deal(AUTO_POOL_V1, 20261106, AUTO_LOCK, []).slice(0, AUTO_LOCK);
+  return deal(AUTO_POOL, 20261107, FIRST_SPECIAL, out).slice(0, FIRST_SPECIAL);
+})();
+/*@types-end*/
+const MODERN_COLORS = [[0xf2f2ef,0x8a5a3c],[0x2b2f3a,0xd8c7a8],[0xdfe3ea,0x3a3f4d],[0xe9e1d4,0x2f3b4a],[0xf4f6fb,0x6b8fa8]];
 const MANSION_COLORS = [[0xf0c9bd,0x5c2f3c],[0xf4f6fb,0x2f3b63],[0xcfe7d8,0x2f5d4a],[0xf3e2c0,0x7d3b3b],[0xdcd0ef,0x4b3a6b],[0xcfe0f4,0x34507a]];
 const hexColor = v => (typeof v === 'string' && /^#?[0-9a-f]{6}$/i.test(v.trim())) ? parseInt(v.trim().replace('#',''), 16) : null;
 function applyCustom(H, f){
   let t = String(f.house || '').trim().toLowerCase(), auto = false;
-  if (!t && f.n <= FIRST_SPECIAL){ t = AUTO_TYPES[(f.n - 1) % AUTO_TYPES.length]; auto = true; }
+  if (!t && f.n <= FIRST_SPECIAL){ t = AUTO_ORDER[f.n - 1]; auto = true; }
   if (TYPE_NAMES[t]) H.type = t;
+  const rv = rng(f.n*7717 + 3), pk = a => a[Math.floor(rv()*a.length)];
   if (t === 'big'){
     Object.assign(H, { w:9.2, d:7.6, floors:2, h:6.6, rh:3.4, ridgeZ:false, chimney:true, garland:!f.left });
     H.signY = 3.4;
@@ -903,21 +951,59 @@ function applyCustom(H, f){
   } else if (t === 'doner'){
     Object.assign(H, { w:8.6, d:6.4, floors:1, h:4.0, rh:0.35, ridgeZ:false, chimney:false, garland:false, body:0xf3d9a8, noFacadeSign:true });
   } else if (SHOPS[t]){
-    Object.assign(H, { w:8.6, d:6.4, floors:1, h:4.2, rh:0.35, ridgeZ:false, chimney:false, garland:false, body:SHOPS[t].body, noFacadeSign:true });
+    const S = SHOPS[t];
+    Object.assign(H, { w:8.6, d:6.4, floors:1, h:4.2, rh:0.35, ridgeZ:false, chimney:false, garland:false, body:pk(S.bodies), stripes:pk(S.stripes).join('|'), noFacadeSign:true });
   } else if (t === 'tower'){
-    Object.assign(H, { w:6.2, d:6.0, floors:2, h:6.2, rh:3.0, ridgeZ:false, chimney:true, garland:!f.left });
+    Object.assign(H, { w:6.2, d:6.0, floors:2, h:6.2, rh:3.0, ridgeZ:false, chimney:true, garland:!f.left,
+      towerSide: rv() < 0.5 ? -1 : 1, towerH: 8.6 + rv()*2.2, towerRoof: pk([0x2f3b63,0x8a2f2f,0x2f6b45,0x6b3a8a,0x3a3a44]) });
     H.signY = 3.2;
   } else if (t === 'chalet'){
-    Object.assign(H, { w:8.0, d:7.0, floors:1, h:3.8, rh:5.0, ridgeZ:true, chimney:true, garland:!f.left, body:0x9b6a45, roof:0x3a2f35, door:0x5a3424 });
+    Object.assign(H, { w:8.0, d:7.0, floors:1, h:3.8, rh:5.0, ridgeZ:true, chimney:true, garland:!f.left,
+      body:pk([0x9b6a45,0x7a5236,0xb07d52,0x6b4a35]), roof:pk([0x3a2f35,0x2f3b4a,0x5a2f2a]), door:0x5a3424 });
     H.signY = 2.95;
   } else if (t === 'gingerbread'){
-    Object.assign(H, { w:7.2, d:6.2, floors:1, h:4.2, rh:3.2, ridgeZ:false, chimney:true, garland:!f.left, warm:false, body:0xb8743f, roof:0x6b3420, door:0xd8352f });
+    Object.assign(H, { w:7.2, d:6.2, floors:1, h:4.2, rh:3.2, ridgeZ:false, chimney:true, garland:!f.left, warm:false,
+      body:pk([0xb8743f,0xa5612f,0xc98a52]), roof:pk([0x6b3420,0x8a3a5a,0x4a2a1a]), door:0xd8352f, icing:pk([0xffffff,0xffffff,0xffd6e8]) });
     H.signY = 2.95;
+  } else if (t === 'izba'){
+    Object.assign(H, { w:7.0, d:6.0, floors:1, h:3.8, rh:3.4, ridgeZ:true, chimney:true, garland:!f.left,
+      body:pk([0x8a5a33,0x9c6b3f,0x74492a]), roof:pk([0x2f6b45,0x8a2f2f,0x34507a,0x5a4a3a]), trim:pk([0xf4f7fd,0x5b8fd6,0xe9e1c6]), shutter:pk([0x2f6fd6,0x2f8a4a,0xd8352f,0x5b8fd6]) });
+    H.signY = 3.25; H.signW = 2.6;
+  } else if (t === 'modern'){
+    const [b, u] = pk(MODERN_COLORS);
+    Object.assign(H, { w:8.0, d:6.0, floors:2, h:6.45, rh:0.5, ridgeZ:false, chimney:false, garland:false, body:b, roof:u });
+    H.signY = 2.85; H.signW = 2.4;
+  } else if (t === 'castle'){
+    Object.assign(H, { w:6.6, d:5.6, floors:2, h:5.0, rh:4.6, ridgeZ:false, chimney:false, garland:!f.left,
+      body:pk([0x9aa0ad,0xb7b1a3,0x8f97a6,0xc4bfb3]), roof:pk([0xd8352f,0x2f5fd6,0x2f6b45,0x6b3a8a]), flag:pk([0xd8352f,0xffd36a,0x2f6fd6,0x2f8a4a]) });
+    H.signY = 4.25; H.signW = 2.4;
+  } else if (t === 'igloo'){
+    Object.assign(H, { w:6.2, d:6.2, floors:1, h:2.7, rh:0.3, ridgeZ:false, chimney:false, garland:false, body:pk([0xeaf3ff,0xe2f0ff,0xf2f7ff]) });
+    H.signY = 1.85; H.signW = 2.2; H.signZ = H.z + H.facing*(3.1*0.55 + 2.2 + 0.08);
+  } else if (t === 'windmill'){
+    Object.assign(H, { w:7.6, d:4.6, floors:2, h:6.4, rh:2.4, ridgeZ:false, chimney:false, garland:!f.left,
+      body:pk([0xf4efe6,0xe8d9c0,0xdfe6ef,0xc9a27a]), roof:pk([0x6b3a2a,0x2f3b63,0x8a2f2f,0x3a3a44]), sail:pk([0xf6f2ea,0xe9dcc4,0xd8352f]) });
+    H.signY = 2.75; H.signW = 1.9; H.signZ = H.z + H.facing*(2.3*(1 - 0.22*2.75/6.4) + 0.1);
+  } else if (t === 'barn'){
+    Object.assign(H, { w:6.0, d:6.4, floors:1, h:4.2, rh:3.0, ridgeZ:true, chimney:false, garland:!f.left,
+      body:pk([0xb8332a,0x2f5d8a,0x3f7a4a,0x9a3b2c]), roof:pk([0x3a3a44,0x5a4a3a,0x2f3b4a]) });
+    H.signY = 3.55;
+  } else if (t === 'white'){
+    Object.assign(H, { w:7.6, d:6.4, floors:2, h:6.2, rh:2.8, ridgeZ:false, chimney:true, garland:!f.left, warm:true,
+      body:0xf6f6f2, roof:pk([0x8a5a33,0x7a4a2a,0x9b6a3f]), door:0x6b4226, noSnowRoof:true });
+    H.signY = 2.6; H.signW = 2.2;
+  } else if (t === 'canteen'){
+    Object.assign(H, { w:9.2, d:6.6, floors:1, h:3.8, rh:0.4, ridgeZ:false, chimney:false, garland:false, body:pk([0xe3efe0,0xf3ead6,0xdfe8f2]), noFacadeSign:true });
+  } else if (t === 'restaurant'){
+    Object.assign(H, { w:8.8, d:6.8, floors:2, h:7.0, rh:0.4, ridgeZ:false, chimney:false, garland:false, body:pk([0x5a1f2b,0x1f3a33,0x22263a]), noFacadeSign:true });
+  } else if (t === 'ice'){
+    Object.assign(H, { body:pk([0xcfe8fb,0xd8f1ff,0xbfe0f5,0xe3f4ff]), roof:pk([0x8fc3e8,0x9cc9ea,0x6fa8d6]), door:0x5b8fd6, warm:false, garland:!f.left, pal:LIGHTS_ICE });
   }
   const bc = hexColor(f.color), rc = hexColor(f.roof);
   if (bc !== null) H.body = bc;
   if (rc !== null) H.roof = rc;
-  H.top = (H.type === 'doner' || SHOPS[H.type]) ? H.h + 4.6 : H.type === 'tower' ? 15.2 : H.h + H.rh + 1.4;
+  const TOPS = { tower: () => H.towerH + 3.8 + 1.6, castle: () => H.h + 2.2 + 2.4 + 1.4, igloo: () => 4.6, windmill: () => 6.4 + 2.4 + 1.4, modern: () => 3.2 + 3.0 + 0.5 + 1.4 };
+  H.top = (H.type === 'doner' || SHOPS[H.type] || H.type === 'canteen' || H.type === 'restaurant') ? H.h + 4.6 : TOPS[H.type] ? TOPS[H.type]() : H.h + H.rh + 1.4;
   H.frontZ = H.z + H.facing*(H.d/2);
 }
 
@@ -1052,7 +1138,7 @@ const qAxis = (ax, a) => new THREE.Quaternion().setFromAxisAngle(ax, a);
 const stripeTexCache = {}, awnMatCache = {};
 function awnMat(key){
   if (awnMatCache[key]) return awnMatCache[key];
-  const [a, b] = SHOPS[key].stripes;
+  const [a, b] = key.split('|');
   const c = document.createElement('canvas'); c.width = 128; c.height = 16; const g = c.getContext('2d');
   for (let i=0;i<8;i++){ g.fillStyle = i%2 ? b : a; g.fillRect(i*16,0,16,16); }
   stripeTexCache[key] = new THREE.CanvasTexture(c);
@@ -1090,8 +1176,9 @@ function emitShop(H, A, gar, smk, addTree){
   A.win.push({ p:[dp.x, 1.55, front + f*0.12], s:[0.7, 0.8, 0.06], c: H.left ? [9,0,0] : [-0.5,0.6,0] });
   A.bulb.push({ p:[dp.x, 2.7, front + f*0.3], s:[0.16,0.16,0.16] });
   // полосатые козырьки
-  (A.awn[H.type] = A.awn[H.type] || []).push({ p: along(-1.3, 3.55, d/2 + 0.7).toArray(), s:[5.6, 0.12, 1.5], q: qAxis(AX_X, 0.33*f) });
-  (A.awn[H.type] = A.awn[H.type] || []).push({ p: along(3.0, 2.95, d/2 + 0.45).toArray(), s:[1.9, 0.1, 0.9], q: qAxis(AX_X, 0.33*f) });
+  const ak = H.stripes || S.stripes[0].join('|'); A.awn[ak] = A.awn[ak] || [];
+  A.awn[ak].push({ p: along(-1.3, 3.55, d/2 + 0.7).toArray(), s:[5.6, 0.12, 1.5], q: qAxis(AX_X, 0.33*f) });
+  A.awn[ak].push({ p: along(3.0, 2.95, d/2 + 0.45).toArray(), s:[1.9, 0.1, 0.9], q: qAxis(AX_X, 0.33*f) });
   // вывеска на крыше
   const signZ = d/2 - 0.7, signY = h + 0.65 + 1.25;
   shopSign(H, S, along, rotY, signY, signZ, H.left ? 'закрыто' : 'у ' + (H.name || 'жителя №' + H.n));
@@ -1124,7 +1211,10 @@ function emitShop(H, A, gar, smk, addTree){
   } else if (S.prop === 'cane'){
     addCane(A, pp.x + sx*0.4, y0, pp.z, 1.0, sx);
     addCane(A, pp.x - sx*1.0, y0, pp.z + 0.6, 0.75, -sx);
+  } else {
+    shopProp(S.prop, H, A, gar, smk, pp, y0, r, o);
   }
+  shopDecor(H, A, gar, r, along);
   // ёлочки у входа, дорожка
   for (const lx of [-4.0]){ const q = along(lx, 0, d/2 + 1.3); addTree(q.x, q.z, 0.5); }
   const pathEnd = z + f*8.4;
@@ -1134,17 +1224,18 @@ function emitShop(H, A, gar, smk, addTree){
 function emitTower(H, A, gar, smk, addTree){
   emitBasic(H, A, gar, smk, addTree);
   const { d, w, facing:f } = H, r = rng(H.n*17 + 3), along = alongOf(H);
-  const tr = 1.35, th = 9.6, c = along(w/2 + 0.55, 0, d/2 - 1.3);
+  const side = H.towerSide || 1, tr = 1.35, th = H.towerH || 9.6, c = along(side*(w/2 + 0.55), 0, d/2 - 1.3);
   const light = new THREE.Color(H.body).lerp(new THREE.Color(0xffffff), 0.22).getHex();
   A.cyl.push({ p:[c.x, 0, c.z], s:[tr, th, tr], c:light });
   A.cyl.push({ p:[c.x, th - 0.3, c.z], s:[tr + 0.14, 0.32, tr + 0.14], c:0xf4f7fd });
-  A.cone.push({ p:[c.x, th, c.z], s:[tr + 0.55, 3.8, tr + 0.55], c:H.roof });
+  A.cone.push({ p:[c.x, th, c.z], s:[tr + 0.55, 3.8, tr + 0.55], c:H.towerRoof || H.roof });
   A.cone.push({ p:[c.x, th + 3.8 - 1.65, c.z], s:[0.92, 1.66, 0.92], c:0xf3f7ff });
   A.cyl.push({ p:[c.x, th + 3.7, c.z], s:[0.05, 1.1, 0.05], c:0x2a2f45 });
   A.gold.push({ p:[c.x, th + 4.95, c.z], s:[0.24, 0.24, 0.24] });
   const wz = c.z + f*(tr + 0.02);
-  for (const y of [2.2, 4.9, 7.6]) A.win.push({ p:[c.x, y, wz], s:[0.8, 1.05, 0.12], c:[H.left ? 9 : 0.1 + r()*0.6, r(), r()*0.6] });
+  for (const y of [2.2, th*0.5 + 0.1, th - 2.0]) A.win.push({ p:[c.x, y, wz], s:[0.8, 1.05, 0.12], c:[H.left ? 9 : 0.1 + r()*0.6, r(), r()*0.6] });
   if (!H.left) for (let i=0;i<44;i++){ const t = i/44, a = t*Math.PI*2*3.2; gar.pos.push(c.x + Math.cos(a)*(tr + 0.14), 0.8 + t*(th - 1.4), c.z + Math.sin(a)*(tr + 0.14)); const cc = LIGHTS_WARM[i%2]; gar.aColor.push(cc[0],cc[1],cc[2]); gar.aPhase.push(r()); gar.aSize.push(0.38); }
+  emitYard(H, A, gar, r, [[-side*3.1, d/2 + 2.7]]);
 }
 function emitChalet(H, A, gar, smk, addTree){
   const { x, z, facing:f, w, d, h, rh, idx:o } = H, r = rng(H.n*29 + 1), along = alongOf(H);
@@ -1184,33 +1275,586 @@ function emitChalet(H, A, gar, smk, addTree){
   const pathEnd = z + f*8.4;
   A.path.push({ p:[x, 0.045, (fw + pathEnd)/2], s:[1.6, 1, Math.abs(pathEnd - fw)] });
   addTree(x - w/2 - 0.6, z - f*(d/2 + 1.6), 0.9); addTree(x + w/2 + 0.3, z - f*(d/2 + 2.4), 0.75);
+  emitYard(H, A, gar, r, [[-3.3, d/2 + 3.1]]);
 }
 function emitGingerbread(H, A, gar, smk, addTree){
   emitBasic(H, A, gar, smk, addTree);
-  const { x, z, facing:f, w, d, h, rh } = H, r = rng(H.n*13 + 9), along = alongOf(H), sx = f > 0 ? 1 : -1;
+  const { x, z, facing:f, w, d, h, rh, idx:o } = H, r = rng(H.n*13 + 9), along = alongOf(H), sx = f > 0 ? 1 : -1, ic = H.icing || 0xffffff;
   // глазурь: по карнизу, капли, углы, над дверью
   for (const s of [1,-1]){
     const ez = z + s*((d+0.9)/2 - 0.05);
-    A.cap.push({ p:[x, h - 0.32, ez], s:[w+0.85, 0.3, 0.24] });
-    for (let px = -w/2 - 0.2; px <= w/2 + 0.25; px += 0.55) A.cap.push({ p:[x + px, h - 0.32 - 0.25 - (Math.round(px*3)%2 ? 0.15 : 0), ez], s:[0.2, 0.3, 0.2] });
+    A.body.push({ p:[x, h - 0.32, ez], s:[w+0.85, 0.3, 0.24], c:ic, o });
+    for (let px = -w/2 - 0.2; px <= w/2 + 0.25; px += 0.55) A.body.push({ p:[x + px, h - 0.32 - 0.25 - (Math.round(px*3)%2 ? 0.15 : 0), ez], s:[0.2, 0.3, 0.2], c:ic, o });
   }
-  for (const s1 of [-1,1]) for (const s2 of [-1,1]) A.cap.push({ p:[x + s1*(w/2), 0, z + s2*(d/2)], s:[0.3, h, 0.3] });
+  for (const s1 of [-1,1]) for (const s2 of [-1,1]) A.body.push({ p:[x + s1*(w/2), 0, z + s2*(d/2)], s:[0.3, h, 0.3], c:ic, o });
   const fz = z + f*(d/2 + 0.1);
-  A.cap.push({ p:[x, 2.25, fz], s:[1.7, 0.24, 0.2] });
-  A.cap.push({ p:[x, 0, fz], s:[w + 0.1, 0.28, 0.2] });
+  A.body.push({ p:[x, 2.25, fz], s:[1.7, 0.24, 0.2], c:ic, o });
+  A.body.push({ p:[x, 0, fz], s:[w + 0.1, 0.28, 0.2], c:ic, o });
   // конфеты-пуговки на фасаде и мармелад на коньке
   if (!H.left){
     for (let i=0;i<7;i++){ const px = x - w*0.42 + i*(w*0.84/6); const c = LIGHTS_MULTI[i % LIGHTS_MULTI.length]; gar.pos.push(px, 3.78, fz + f*0.08); gar.aColor.push(c[0],c[1],c[2]); gar.aPhase.push(r()); gar.aSize.push(0.62); }
     for (let i=0;i<6;i++){ const px = x - w*0.42 + i*(w*0.84/5); const c = LIGHTS_MULTI[(i+2) % LIGHTS_MULTI.length]; gar.pos.push(px, h + rh + 0.45, z); gar.aColor.push(c[0],c[1],c[2]); gar.aPhase.push(r()); gar.aSize.push(1.0); }
   }
   // леденцы у дорожки и карамельная трость у двери
-  for (const [lx, col] of [[-1.6, 0xff5a8a], [1.6, 0x7fd4ff]]){
+  const LP = [0xff5a8a, 0x7fd4ff, 0xffd34d, 0x8be38b, 0xd86bff];
+  for (const [lx, col] of [[-1.6, LP[H.n % 5]], [1.6, LP[(H.n + 2) % 5]]]){
     const q = along(lx, 0, d/2 + 2.4);
     A.cyl.push({ p:[q.x, 0, q.z], s:[0.07, 1.5, 0.07], c:0xf6f2ea });
     A.cyl.push({ p:[q.x, 1.85, q.z - 0.07], s:[0.62, 0.14, 0.62], q: qAxis(AX_X, Math.PI/2), c:col });
     A.cyl.push({ p:[q.x, 1.85, q.z - 0.06], s:[0.3, 0.16, 0.3], q: qAxis(AX_X, Math.PI/2), c:0xffffff });
   }
   const cp = along(1.25, 0, d/2 + 0.55); addCane(A, cp.x, 0, cp.z, 0.75, sx);
+}
+
+/* ---------- разнообразие: общие помощники ---------- */
+const QX90 = qAxis(AX_X, Math.PI/2), QXm90 = qAxis(AX_X, -Math.PI/2), QZm90 = qAxis(AX_Z, -Math.PI/2), QXPI = qAxis(AX_X, Math.PI);
+const pickR = (r, a) => a[Math.floor(r()*a.length)];
+// брус по центру (cx,cy,cz) длиной L, повёрнут на th вокруг Z
+function beam(A, cx, cy, cz, L, th, w, t, c, o){
+  const dx = -Math.sin(th)*L/2, dy = Math.cos(th)*L/2;
+  A.body.push({ p:[cx - dx, cy - dy, cz], s:[w, L, t], q: qAxis(AX_Z, th), c, o });
+}
+// украшения во дворе
+function yardItem(kind, p, H, A, gar, r){
+  const f = H.facing, o = H.idx, qs = f > 0 ? QX90 : QXm90;
+  if (kind === 'snowman'){
+    A.sph.push({ p:[p.x, 0.5, p.z], s:[0.6, 0.55, 0.6], c:0xf4f7fd });
+    A.sph.push({ p:[p.x, 1.28, p.z], s:[0.44, 0.42, 0.44], c:0xf4f7fd });
+    A.sph.push({ p:[p.x, 1.9, p.z], s:[0.32, 0.32, 0.32], c:0xf4f7fd });
+    A.cyl.push({ p:[p.x, 1.6, p.z], s:[0.37, 0.14, 0.37], c: pickR(r, [0xd8352f, 0x2f6fd6, 0x2f8a4a, 0xffb43a]) });
+    A.cone.push({ p:[p.x, 1.9, p.z + f*0.25], s:[0.07, 0.38, 0.07], q:qs, c:0xff8a2e });
+    A.cyl.push({ p:[p.x, 2.12, p.z], s:[0.4, 0.05, 0.4], c:0x22252e });
+    A.cyl.push({ p:[p.x, 2.15, p.z], s:[0.25, 0.38, 0.25], c:0x22252e });
+    A.cyl.push({ p:[p.x + 0.35, 1.35, p.z], s:[0.04, 0.7, 0.04], q: qAxis(AX_Z, -1.0), c:0x5a3d2b });
+    A.cyl.push({ p:[p.x - 0.35, 1.35, p.z], s:[0.04, 0.7, 0.04], q: qAxis(AX_Z, 1.0), c:0x5a3d2b });
+  } else if (kind === 'sled'){
+    const c = pickR(r, [0xd8352f, 0x2f6fd6, 0x8a5a3c]);
+    for (const s of [-0.32, 0.32]) A.body.push({ p:[p.x + s, 0.02, p.z], s:[0.08, 0.12, 1.5], c:0x3a2a20, o });
+    for (const s1 of [-0.32, 0.32]) for (const s2 of [-0.45, 0.45]) A.body.push({ p:[p.x + s1, 0.12, p.z + s2], s:[0.06, 0.2, 0.06], c:0x3a2a20, o });
+    A.body.push({ p:[p.x, 0.32, p.z], s:[0.8, 0.08, 1.2], c, o });
+    A.body.push({ p:[p.x, 0.4, p.z], s:[0.45, 0.4, 0.45], c:0xffd36a, o });
+  } else if (kind === 'mailbox'){
+    A.cyl.push({ p:[p.x, 0, p.z], s:[0.07, 1.0, 0.07], c:0x3a2a20 });
+    A.body.push({ p:[p.x, 1.0, p.z], s:[0.4, 0.35, 0.6], c: pickR(r, [0x2f6fd6, 0xd8352f, 0x2f8a4a, 0x22252e]), o });
+    A.cap.push({ p:[p.x, 1.35, p.z], s:[0.44, 0.08, 0.64] });
+    A.body.push({ p:[p.x + 0.22, 1.05, p.z], s:[0.04, 0.4, 0.18], c:0xd8352f, o });
+  } else if (kind === 'bench'){
+    A.body.push({ p:[p.x, 0.42, p.z], s:[1.6, 0.1, 0.5], c:0x8a5a3c, o });
+    A.body.push({ p:[p.x, 0.52, p.z - f*0.22], s:[1.6, 0.45, 0.08], c:0x8a5a3c, o });
+    for (const s of [-0.65, 0.65]) A.body.push({ p:[p.x + s, 0, p.z], s:[0.08, 0.42, 0.45], c:0x2a2f45, o });
+    A.cap.push({ p:[p.x, 0.52, p.z], s:[1.5, 0.06, 0.42] });
+  } else if (kind === 'gifts'){
+    const cols = [0xd8352f, 0x2f6fd6, 0x2f8a4a, 0xb99ad1, 0xffd36a], k0 = Math.floor(r()*5);
+    [[0, 0, 0.7], [0.55, 0.2, 0.5], [-0.45, -0.25, 0.45]].forEach(([dx, dz, sz], i) => {
+      A.body.push({ p:[p.x + dx, 0, p.z + dz], s:[sz, sz, sz], c: cols[(i + k0) % 5], o });
+      A.body.push({ p:[p.x + dx, 0, p.z + dz], s:[sz + 0.02, sz + 0.01, 0.1], c: (i + k0) % 5 === 4 ? 0xd8352f : 0xffd36a, o });
+    });
+  } else if (kind === 'lantern'){
+    A.cyl.push({ p:[p.x, 0, p.z], s:[0.06, 1.8, 0.06], c:0x22252e });
+    A.body.push({ p:[p.x, 1.8, p.z], s:[0.3, 0.4, 0.3], c:0x22252e, o });
+    A.cap.push({ p:[p.x, 2.2, p.z], s:[0.38, 0.08, 0.38] });
+    gar.pos.push(p.x, 2.0, p.z); gar.aColor.push(1, 0.8, 0.45); gar.aPhase.push(r()); gar.aSize.push(1.1);
+  } else if (kind === 'fence'){
+    for (let i = 0; i < 5; i++) A.body.push({ p:[p.x - 1.4 + i*0.7, 0, p.z], s:[0.12, 0.9, 0.12], c:0xf4f7fd, o });
+    for (const y of [0.35, 0.7]) A.body.push({ p:[p.x, y, p.z], s:[2.9, 0.08, 0.06], c:0xf4f7fd, o });
+    A.cap.push({ p:[p.x, 0.9, p.z], s:[2.9, 0.06, 0.14] });
+  } else if (kind === 'deer'){
+    const c = 0x8a5a3c;
+    A.body.push({ p:[p.x, 0.75, p.z], s:[0.5, 0.45, 1.1], c, o });
+    for (const s1 of [-0.17, 0.17]) for (const s2 of [-0.4, 0.4]) A.body.push({ p:[p.x + s1, 0, p.z + s2], s:[0.09, 0.78, 0.09], c, o });
+    A.body.push({ p:[p.x, 1.05, p.z + f*0.45], s:[0.2, 0.55, 0.2], c, o });
+    A.body.push({ p:[p.x, 1.5, p.z + f*0.55], s:[0.3, 0.28, 0.42], c, o });
+    A.sph.push({ p:[p.x, 1.62, p.z + f*0.78], s:[0.08, 0.08, 0.08], c:0xff3b3b });
+    for (const s of [-1, 1]){ A.cyl.push({ p:[p.x + s*0.1, 1.75, p.z + f*0.5], s:[0.03, 0.5, 0.03], q: qAxis(AX_Z, -s*0.5), c:0x5a3d2b }); }
+    gar.pos.push(p.x, 1.62, p.z + f*0.8); gar.aColor.push(1, 0.25, 0.22); gar.aPhase.push(r()); gar.aSize.push(0.22);
+  }
+}
+const YARD_POOL = ['snowman', 'sled', 'mailbox', 'bench', 'gifts', 'lantern', 'snowman', 'gifts', 'deer', 'fence'];
+function emitYard(H, A, gar, r, spots){
+  const along = alongOf(H);
+  spots = spots || [[-3.1, H.d/2 + 2.7], [3.1, H.d/2 + 2.7]];
+  const n = Math.min(spots.length, r() < 0.55 ? 2 : 1), used = new Set();
+  for (let k = 0; k < n; k++){
+    let kind = pickR(r, YARD_POOL); if (used.has(kind)) kind = YARD_POOL[(YARD_POOL.indexOf(kind) + 3) % YARD_POOL.length]; used.add(kind);
+    const [lx, lz] = spots[k]; yardItem(kind, along(lx, 0, lz), H, A, gar, r);
+  }
+}
+// обычные дома: ставни, крыльцо, мансарда, балкон, венок
+function basicExtras(H, A, gar, win, fz){
+  const { x, z, facing:f, w, d, h, rh, idx:o } = H, r = rng(H.n*577 + 11);
+  if (r() < 0.45){
+    const sc = pickR(r, SHUTTERS);
+    const rows = H.floors === 2 ? [[1.9, 1.25, [-w*0.3, w*0.3]], [4.55, 1.1, [-w*0.28, w*0.28]]] : [[1.9, 1.25, [-w*0.3, w*0.3]]];
+    for (const [wy, ww, xs] of rows) for (const wx of xs) for (const s of [-1, 1]) A.body.push({ p:[x + wx + s*(ww/2 + 0.2), wy - 0.6, fz + f*0.01], s:[0.34, 1.2, 0.08], c:sc, o });
+  }
+  if (r() < 0.4){
+    A.body.push({ p:[x, 2.25, fz + f*0.65], s:[2.1, 0.14, 1.3], c:H.roof, o });
+    A.cap.push({ p:[x, 2.39, fz + f*0.65], s:[2.0, 0.1, 1.2] });
+    for (const s of [-1, 1]) A.body.push({ p:[x + s*0.9, 0, fz + f*1.2], s:[0.14, 2.25, 0.14], c:0xf4f7fd, o });
+    A.body.push({ p:[x, 0, fz + f*0.65], s:[2.1, 0.18, 1.3], c:0xd9d2c4, o });
+  }
+  if (H.floors === 1 && !H.ridgeZ && r() < 0.4){
+    const dz = z + f*(d*0.25 - 0.1);
+    A.body.push({ p:[x, h + rh*0.15, dz], s:[1.5, rh*0.55, 1.7], c:H.body, o });
+    A.roof.push({ p:[x, h + rh*0.7, dz], s:[1.95, 0.6, 2.0], q:Q90, c:H.roof, o });
+    A.snow.push({ p:[x, h + rh*0.7 + 0.12, dz], s:[1.8, 0.6, 1.9], q:Q90, o });
+    win(x, h + rh*0.45, dz + f*(0.85 + 0.03), 0.8, 0.55, 0.12);
+  }
+  if (H.floors === 2 && r() < 0.4){
+    A.body.push({ p:[x, 3.75, fz + f*0.55], s:[3.0, 0.15, 1.1], c:0xf4f7fd, o });
+    A.body.push({ p:[x, 3.9, fz + f*1.05], s:[3.0, 0.6, 0.08], c:H.roof, o });
+    A.cap.push({ p:[x, 4.5, fz + f*1.05], s:[3.0, 0.08, 0.14] });
+  }
+  if (!H.left && r() < 0.5){
+    A.torus.push({ p:[x, 1.6, fz + f*0.13], s:[0.3, 0.3, 0.3], c:0x2f6b45 });
+    A.sph.push({ p:[x, 1.33, fz + f*0.2], s:[0.1, 0.1, 0.1], c:0xd8352f });
+  }
+  if (H.type !== 'big') emitYard(H, A, gar, r);
+}
+/* ---------- новые фигуры на крышах магазинов ---------- */
+function shopProp(kind, H, A, gar, smk, pp, y0, r, o){
+  const f = H.facing, sx = f > 0 ? 1 : -1, qs = f > 0 ? QX90 : QXm90, along = alongOf(H);
+  const ped = () => { A.body.push({ p:[pp.x, y0, pp.z], s:[1.7, 0.6, 1.7], c:0x2a2f45, o }); return y0 + 0.6; };
+  if (kind === 'pizza'){
+    A.cyl.push({ p:[pp.x, y0, pp.z], s:[0.08, 1.0, 0.08], c:0x2a2f45 });
+    const cy = y0 + 2.1;
+    A.cyl.push({ p:[pp.x, cy, pp.z], s:[1.3, 0.2, 1.3], q:qs, c:0xd99a4a });
+    A.cyl.push({ p:[pp.x, cy, pp.z + f*0.12], s:[1.12, 0.12, 1.12], q:qs, c:0xffc94a });
+    for (let i = 0; i < 7; i++){ const a = i/6*Math.PI*2 + 0.3, rr = i === 6 ? 0 : 0.68; A.sph.push({ p:[pp.x + Math.cos(a)*rr, cy + Math.sin(a)*rr, pp.z + f*0.25], s:[0.2, 0.2, 0.05], c:0xc4322c }); }
+  } else if (kind === 'burger'){
+    const yb = ped(), B = (y, rr, hh, c) => A.cyl.push({ p:[pp.x, yb + y, pp.z], s:[rr, hh, rr], c });
+    B(0, 1.1, 0.45, 0xd99a4a); B(0.45, 1.2, 0.32, 0x5a3420);
+    A.body.push({ p:[pp.x, yb + 0.77, pp.z], s:[1.9, 0.08, 1.9], q: qAxis(AX_Y, Math.PI/4), c:0xffc93a, o });
+    B(0.85, 1.25, 0.12, 0x5fbf4a); B(0.97, 1.12, 0.14, 0xd8352f);
+    A.sph.push({ p:[pp.x, yb + 1.11, pp.z], s:[1.12, 0.8, 1.12], c:0xd99a4a });
+    for (let i = 0; i < 6; i++){ const a = i/6*Math.PI*2; A.sph.push({ p:[pp.x + Math.cos(a)*0.5, yb + 1.83, pp.z + Math.sin(a)*0.5], s:[0.09, 0.05, 0.09], c:0xfff4e0 }); }
+  } else if (kind === 'flowers'){
+    A.cyl.push({ p:[pp.x, y0, pp.z], s:[0.9, 1.0, 0.9], c:0xb8673a });
+    A.cyl.push({ p:[pp.x, y0 + 1.0, pp.z], s:[0.98, 0.15, 0.98], c:0xa65a30 });
+    A.sph.push({ p:[pp.x, y0 + 1.25, pp.z], s:[0.95, 0.45, 0.95], c:0x2f6b3a });
+    const FC = [0xff5a8a, 0xffd34d, 0xff7b5a, 0xffffff, 0xd86bff, 0xff3b5c];
+    for (let i = 0; i < 7; i++){ const a = i/7*Math.PI*2; A.sph.push({ p:[pp.x + Math.cos(a)*0.55, y0 + 1.7 + r()*0.3, pp.z + Math.sin(a)*0.55], s:[0.36, 0.36, 0.36], c: FC[(i + H.n) % FC.length] }); }
+    A.sph.push({ p:[pp.x, y0 + 2.2, pp.z], s:[0.42, 0.42, 0.42], c: FC[H.n % FC.length] });
+  } else if (kind === 'books'){
+    const BC = [0x2f6fd6, 0xd8352f, 0x2f8a4a, 0xffd34d, 0x6b3a8a, 0xf4efe6];
+    let yy = y0;
+    for (let i = 0; i < 5; i++){
+      const hh = 0.32 + r()*0.2, ww = 2.0 - i*0.15 + r()*0.2, dd = 1.4 - i*0.08, q = qAxis(AX_Y, (r() - 0.5)*0.5);
+      A.body.push({ p:[pp.x, yy, pp.z], s:[ww, hh, dd], q, c: BC[(i + H.n) % BC.length], o });
+      A.body.push({ p:[pp.x, yy + hh*0.15, pp.z], s:[ww - 0.14, hh*0.7, dd + 0.04], q, c:0xf6f2ea, o });
+      yy += hh;
+    }
+  } else if (kind === 'pole'){
+    const pole = (px, py, pz, sc) => {
+      A.cyl.push({ p:[px, py, pz], s:[0.32*sc, 0.25*sc, 0.32*sc], c:0x22252e });
+      for (let i = 0; i < 8; i++) A.cyl.push({ p:[px, py + 0.25*sc + i*0.3*sc, pz], s:[0.26*sc, 0.3*sc, 0.26*sc], c:[0xd8352f, 0xffffff, 0x2f5fd6, 0xffffff][i % 4] });
+      A.sph.push({ p:[px, py + 0.25*sc + 2.4*sc + 0.1*sc, pz], s:[0.3*sc, 0.3*sc, 0.3*sc], c:0xf6f2ea });
+    };
+    pole(pp.x, y0, pp.z, 1.0);
+    const wp = along(4.0, 0, H.d/2 + 0.3); pole(wp.x, 0.9, wp.z, 0.6);
+  } else if (kind === 'roll'){
+    const yb = ped();
+    for (const [lx, sc] of [[0, 1], [-1.15*sx, 0.6]]){
+      const cx = pp.x + lx, cy = yb + 0.8*sc, fe = pp.z + f*0.8*sc;
+      A.cyl.push({ p:[cx, cy, pp.z - 0.8*sc], s:[0.8*sc, 1.6*sc, 0.8*sc], q:QX90, c:0x1f3a2a });
+      A.cyl.push({ p:[cx, cy, fe], s:[0.68*sc, 0.05, 0.68*sc], q:qs, c:0xf6f2ea });
+      A.cyl.push({ p:[cx, cy, fe], s:[0.3*sc, 0.08, 0.3*sc], q:qs, c:0xff7b5a });
+    }
+  } else if (kind === 'dumbbell'){
+    const yb = ped() + 0.7;
+    for (const s of [-0.6, 0.6]) A.body.push({ p:[pp.x + s, yb - 0.7, pp.z], s:[0.2, 0.6, 0.2], c:0x8a8f9e, o });
+    A.cyl.push({ p:[pp.x - 1.4, yb, pp.z], s:[0.11, 2.8, 0.11], q:QZm90, c:0xb8bcc6 });
+    for (const s of [-1, 1]) for (const k of [0, 0.32]) A.cyl.push({ p:[pp.x + s*(1.0 + k) - (s < 0 ? 0.3 : 0), yb, pp.z], s:[0.65 - k*0.4, 0.3, 0.65 - k*0.4], q:QZm90, c:0x22252e });
+  } else if (kind === 'gamepad'){
+    const gy = y0 + 1.3, gz = pp.z;
+    A.cyl.push({ p:[pp.x, y0, pp.z], s:[0.1, 1.0, 0.1], c:0x2a2f45 });
+    A.sph.push({ p:[pp.x, gy, gz], s:[1.3, 0.6, 0.45], c:0x2b2f3d });
+    for (const s of [-1, 1]) A.sph.push({ p:[pp.x + s*0.95, gy - 0.3, gz], s:[0.55, 0.6, 0.42], c:0x2b2f3d });
+    const bz = gz + f*0.42, bx = pp.x + sx*0.55, cx = pp.x - sx*0.55;
+    [[0, 0.18, 0xff4f5a], [0.18, 0, 0x4fd1ff], [-0.18, 0, 0xffd34d], [0, -0.18, 0x6dff8a]].forEach(([dx, dy, c]) => A.sph.push({ p:[bx + dx, gy + dy, bz], s:[0.11, 0.11, 0.08], c }));
+    A.body.push({ p:[cx, gy - 0.08, bz], s:[0.45, 0.16, 0.08], c:0xd8dce6, o });
+    A.body.push({ p:[cx, gy - 0.22, bz], s:[0.16, 0.45, 0.08], c:0xd8dce6, o });
+    if (!H.left) for (let i = 0; i < 10; i++){ const a = i/10*Math.PI*2; gar.pos.push(pp.x + Math.cos(a)*1.6, gy + Math.sin(a)*0.9, gz); const c = i % 2 ? [1, 0.3, 0.85] : [0.45, 0.95, 1]; gar.aColor.push(c[0], c[1], c[2]); gar.aPhase.push(r()); gar.aSize.push(0.5); }
+  } else if (kind === 'teapot'){
+    const tc = [0xf6f2ea, 0x5b8fd6, 0xd8352f, 0x2f8a4a][H.n % 4], ty = ped() + 0.85;
+    A.sph.push({ p:[pp.x, ty, pp.z], s:[1.0, 0.85, 1.0], c:tc });
+    A.sph.push({ p:[pp.x, ty + 0.8, pp.z], s:[0.5, 0.22, 0.5], c:tc });
+    A.sph.push({ p:[pp.x, ty + 1.05, pp.z], s:[0.13, 0.13, 0.13], c:0xffd36a });
+    A.cyl.push({ p:[pp.x + sx*0.75, ty - 0.2, pp.z], s:[0.13, 1.0, 0.13], q: qAxis(AX_Z, -sx*0.85), c:tc });
+    A.htorus.push({ p:[pp.x - sx*0.95, ty + 0.05, pp.z], s:[0.42, 0.42, 0.42], q: qAxis(AX_Z, sx*Math.PI/2), c:tc });
+    if (!H.left){ const tx = pp.x + sx*(0.75 + Math.sin(0.85)*1.0), tyy = ty - 0.2 + Math.cos(0.85)*1.0; for (let i = 0; i < 5; i++){ smk.pos.push(tx, tyy, pp.z); smk.aPhase.push(i/5); } }
+  } else if (kind === 'ornaments'){
+    const yb = ped();
+    [[0, 0.75, 0xd8352f], [-sx*1.05, 0.55, 0xffc93a], [sx*0.95, 0.5, 0x2f6fd6]].forEach(([dx, rr, c]) => {
+      A.sph.push({ p:[pp.x + dx, yb + rr, pp.z], s:[rr, rr, rr], c });
+      A.cyl.push({ p:[pp.x + dx, yb + rr*2 - 0.05, pp.z], s:[rr*0.3, rr*0.35, rr*0.3], c:0xc9a24a });
+      A.torus.push({ p:[pp.x + dx, yb + rr*2 + 0.42*rr, pp.z], s:[rr*0.2, rr*0.2, rr*0.2], c:0xc9a24a });
+      A.sph.push({ p:[pp.x + dx, yb + rr, pp.z + f*rr*0.8], s:[rr*0.4, rr*0.12, rr*0.2], c:0xffffff });
+    });
+    if (!H.left) for (let i = 0; i < 14; i++){ const a = i/14*Math.PI*2; gar.pos.push(pp.x + Math.cos(a)*1.9, yb + 0.15, pp.z + Math.sin(a)*1.2); const c = LIGHTS_MULTI[i % LIGHTS_MULTI.length]; gar.aColor.push(c[0], c[1], c[2]); gar.aPhase.push(r()); gar.aSize.push(0.45); }
+  } else if (kind === 'tophat'){
+    A.body.push({ p:[pp.x, y0, pp.z], s:[1.4, 1.2, 1.4], c:0x2a2f45, o });
+    const yb = y0 + 1.2;
+    A.cyl.push({ p:[pp.x, yb, pp.z], s:[1.6, 0.12, 1.6], c:0x1c1c22 });
+    A.cyl.push({ p:[pp.x, yb + 0.12, pp.z], s:[1.0, 2.0, 1.0], c:0x1c1c22 });
+    A.cyl.push({ p:[pp.x, yb + 0.18, pp.z], s:[1.02, 0.4, 1.02], c:0xa61f2f });
+    A.cap.push({ p:[pp.x, yb + 2.12, pp.z], s:[1.3, 0.12, 1.3] });
+    const bp = along(4.05, 0, -0.1);
+    A.cyl.push({ p:[bp.x, y0, bp.z], s:[0.7, 0.06, 0.7], c:0x6b4226 });
+    A.sph.push({ p:[bp.x, y0 + 0.06, bp.z], s:[0.45, 0.42, 0.45], c:0x6b4226 });
+    A.cyl.push({ p:[bp.x, y0 + 0.08, bp.z], s:[0.47, 0.1, 0.47], c:0x2a1c22 });
+  } else if (kind === 'toys'){
+    const ty = ped();
+    A.cone.push({ p:[pp.x, ty + 1.3, pp.z], s:[1.0, 1.3, 1.0], q:QXPI, c:0xd8352f });
+    A.cone.push({ p:[pp.x, ty + 1.3, pp.z], s:[1.0, 0.6, 1.0], c:0xffd34d });
+    A.cyl.push({ p:[pp.x, ty + 1.8, pp.z], s:[0.12, 0.6, 0.12], c:0x2f6fd6 });
+    const bp = along(4.1, 0, -0.4); A.sph.push({ p:[bp.x, y0 + 0.5, bp.z], s:[0.5, 0.5, 0.5], c: [0x2f6fd6, 0x2f8a4a, 0xd86bff][H.n % 3] });
+  }
+}
+// у входа в магазин: лавочка, штендер или фонарь
+function shopDecor(H, A, gar, r, along){
+  const v = r(), f = H.facing, o = H.idx;
+  if (v < 0.4) yardItem('bench', along(-1.3, 0, H.d/2 + 1.5), H, A, gar, r);
+  else if (v < 0.75){
+    const sp = along(1.6, 0, H.d/2 + 1.3), c = SHOPS[H.type].trim;
+    A.body.push({ p:[sp.x, 0, sp.z - 0.25], s:[0.7, 1.0, 0.05], q: qAxis(AX_X, 0.25), c, o });
+    A.body.push({ p:[sp.x, 0, sp.z + 0.25], s:[0.7, 1.0, 0.05], q: qAxis(AX_X, -0.25), c, o });
+  } else yardItem('lantern', along(1.7, 0, H.d/2 + 1.2), H, A, gar, r);
+}
+/* ---------- новые дома ---------- */
+function emitIzba(H, A, gar, smk, addTree){
+  const { x, z, facing:f, w, d, h, rh, idx:o } = H, r = rng(H.n*41 + 3), along = alongOf(H);
+  const lc = H.body, lc2 = new THREE.Color(lc).multiplyScalar(0.82).getHex(), tc = H.trim;
+  const ff = z + f*(d/2 + 0.02);
+  A.body.push({ p:[x, 0, z], s:[w - 0.3, h, d - 0.3], c:lc2, o });
+  const n = Math.round(h/0.4);
+  for (let i = 0; i < n; i++){
+    const y = 0.2 + i*0.4, c = i % 2 ? lc : lc2;
+    for (const s of [-1, 1]){
+      A.cyl.push({ p:[x - w/2 - 0.35, y, z + s*(d/2 - 0.2)], s:[0.21, w + 0.7, 0.21], q:QZm90, c });
+      A.cyl.push({ p:[x + s*(w/2 - 0.2), y + 0.2, z - d/2 - 0.35], s:[0.21, d + 0.7, 0.21], q:QX90, c });
+    }
+  }
+  const rw = w + 1.0, rd = d + 1.1, fg = z + f*(rd/2 + 0.03);
+  A.roof.push({ p:[x, h, z], s:[rd, rh, rw], q:Q90, c:H.roof, o });
+  A.snow.push({ p:[x, h + 0.3, z], s:[rd - 0.25, rh, rw*0.98], q:Q90, o });
+  // резные доски по фронтону, «полотенце», окно-светёлка
+  const L = Math.hypot(rw/2, rh), ang = Math.atan2(rw/2, rh);
+  beam(A, x - rw/4, h + rh/2 - 0.12, fg + f*0.05, L, -ang, 0.32, 0.1, tc, o);
+  beam(A, x + rw/4, h + rh/2 - 0.12, fg + f*0.05, L, ang, 0.32, 0.1, tc, o);
+  A.body.push({ p:[x, h + rh - 1.35, fg + f*0.06], s:[0.4, 1.1, 0.1], c:tc, o });
+  const gy = h + rh*0.33;
+  A.win.push({ p:[x, gy, fg], s:[0.9, 0.9, 0.12], c:[H.left ? 9 : 0.2, 0.5, 0.3] });
+  A.body.push({ p:[x, gy + 0.45, fg + f*0.05], s:[1.3, 0.25, 0.08], c:tc, o });
+  A.body.push({ p:[x, gy - 0.62, fg + f*0.05], s:[1.2, 0.15, 0.08], c:tc, o });
+  // окна с наличниками и ставнями
+  for (const s of [-1, 1]){
+    const wx = x + s*w*0.28, wy = 1.9;
+    A.win.push({ p:[wx, wy, ff + 0.0], s:[1.0, 1.15, 0.12], c:[H.left ? 9 : 0.12 + r()*0.6, r(), r()] });
+    A.body.push({ p:[wx, wy + 0.6, ff + f*0.06], s:[1.45, 0.38, 0.1], c:tc, o });
+    A.body.push({ p:[wx, wy - 0.75, ff + f*0.06], s:[1.35, 0.16, 0.1], c:tc, o });
+    for (const t of [-1, 1]){
+      A.body.push({ p:[wx + t*0.6, wy - 0.62, ff + f*0.06], s:[0.16, 1.25, 0.1], c:tc, o });
+      A.body.push({ p:[wx + t*1.0, wy - 0.58, ff + f*0.04], s:[0.5, 1.15, 0.06], c:H.shutter, o });
+    }
+    A.win.push({ p:[x + s*(w/2 + 0.03), 1.9, z], s:[0.12, 1.0, 1.0], c:[H.left ? 9 : 0.12 + r()*0.6, r(), r()] });
+  }
+  // дверь и крыльцо
+  A.door.push({ p:[x, 1.1, ff + f*0.04], s:[1.1, 2.2, 0.14], c:0x5a3424 });
+  A.body.push({ p:[x, 2.35, ff + f*0.55], s:[1.8, 0.12, 1.1], c:H.roof, o });
+  A.cap.push({ p:[x, 2.47, ff + f*0.55], s:[1.7, 0.1, 1.0] });
+  for (const s of [-1, 1]) A.body.push({ p:[x + s*0.75, 0, ff + f*1.0], s:[0.14, 2.35, 0.14], c:tc, o });
+  A.body.push({ p:[x, 0, ff + f*0.55], s:[1.8, 0.25, 1.1], c:lc2, o });
+  // труба
+  const cx = x + w*0.2, cz = z - f*d*0.15, cy = h + rh*0.4, ch = rh*0.7 + 0.9;
+  A.chim.push({ p:[cx, cy, cz], s:[0.75, ch, 0.75] }); A.cap.push({ p:[cx, cy + ch, cz], s:[0.95, 0.28, 0.95] });
+  if (!H.left) for (let i = 0; i < 5; i++){ smk.pos.push(cx, cy + ch + 0.2, cz); smk.aPhase.push(i/5 + r()*0.1); }
+  if (H.garland){
+    const pal = r() < 0.5 ? LIGHTS_WARM : LIGHTS_MULTI, gz = fg + f*0.15, nn = Math.round(L/0.42);
+    for (const s of [-1, 1]) for (let i = 0; i < nn; i++){ const t = i/nn; gar.pos.push(x + s*(rw/2)*(1 - t), h + rh*t + 0.05, gz); const c = pal[i % pal.length]; gar.aColor.push(c[0], c[1], c[2]); gar.aPhase.push(r()); gar.aSize.push(0.42); }
+  }
+  const pathEnd = z + f*8.4;
+  A.path.push({ p:[x, 0.045, (ff + pathEnd)/2], s:[1.6, 1, Math.abs(pathEnd - ff)] });
+  addTree(x + (r() - 0.5)*w, z - f*(d/2 + 2.6), 0.7 + r()*0.3);
+  emitYard(H, A, gar, r);
+}
+function emitModern(H, A, gar, smk, addTree){
+  const { x, z, facing:f, w, d, idx:o } = H, r = rng(H.n*43 + 1);
+  const h1 = 3.2, h2 = 3.0, side = H.n % 2 ? 1 : -1, w2 = 5.4, d2 = d + 0.6, ox = side*1.2;
+  const ff = z + f*(d/2 + 0.03), fu = z + f*(d2/2 + 0.03);
+  const lit = () => [H.left ? 9 : 0.1 + r()*0.5, 0.15 + r()*0.5, r()*0.4];
+  A.body.push({ p:[x, 0, z], s:[w, h1, d], c:H.body, o });
+  A.cap.push({ p:[x, h1, z], s:[w + 0.1, 0.22, d + 0.1] });
+  A.body.push({ p:[x + ox, h1, z], s:[w2, h2, d2], c:H.roof, o });
+  A.body.push({ p:[x + ox, h1 + h2, z], s:[w2 + 0.4, 0.25, d2 + 0.4], c:0x2b2f3a, o });
+  A.cap.push({ p:[x + ox, h1 + h2 + 0.25, z], s:[w2 + 0.3, 0.25, d2 + 0.3] });
+  A.win.push({ p:[x - side*1.4, 1.3, ff], s:[3.6, 1.8, 0.12], c:lit() });
+  A.door.push({ p:[x + side*2.7, 1.1, ff + f*0.04], s:[1.1, 2.2, 0.14], c:0x2b2f3a });
+  for (let i = 0; i < 6; i++) A.body.push({ p:[x + side*(0.65 + i*0.24), 0, ff + f*0.03], s:[0.1, 3.0, 0.1], c:0x8a5a3c, o });
+  A.win.push({ p:[x + ox, h1 + 1.5, fu], s:[w2 - 1.0, 1.3, 0.12], c:lit() });
+  for (const s of [-1, 1]) A.win.push({ p:[x + ox + s*(w2/2 + 0.03), h1 + 1.5, z], s:[0.12, 1.2, 2.4], c:lit() });
+  for (const s of [-1, 1]) A.win.push({ p:[x + s*(w/2 + 0.03), 1.4, z], s:[0.12, 1.4, 1.8], c:lit() });
+  const px = x - ox*0.6, pz = z - f*d*0.2;
+  A.cyl.push({ p:[px, h1 + h2 + 0.25, pz], s:[0.16, 1.2, 0.16], c:0x3a3f4d });
+  if (!H.left){
+    for (let i = 0; i < 4; i++){ smk.pos.push(px, h1 + h2 + 1.5, pz); smk.aPhase.push(i/4 + r()*0.1); }
+    const L = w2 + 0.4, nn = Math.round(L/0.38);
+    for (let i = 0; i <= nn; i++){ gar.pos.push(x + ox - L/2 + L*i/nn, h1 + h2 + 0.1, fu + f*0.22); gar.aColor.push(1, 0.82, 0.5); gar.aPhase.push(0.5); gar.aSize.push(0.3); }
+  }
+  const pathEnd = z + f*8.4, dx = x + side*2.7;
+  A.path.push({ p:[dx, 0.045, (ff + pathEnd)/2], s:[1.4, 1, Math.abs(pathEnd - ff)] });
+  emitYard(H, A, gar, r, [[-side*3.1, d/2 + 2.7]]);
+}
+function emitCastle(H, A, gar, smk, addTree){
+  const { x, z, facing:f, w, d, h, idx:o } = H, r = rng(H.n*47 + 9), along = alongOf(H), qs = f > 0 ? QX90 : QXm90;
+  const stone = H.body, light = new THREE.Color(stone).lerp(new THREE.Color(0xffffff), 0.18).getHex();
+  const ff = z + f*(d/2 + 0.03);
+  A.body.push({ p:[x, 0, z], s:[w, h, d], c:stone, o });
+  A.cap.push({ p:[x, h, z], s:[w - 0.1, 0.18, d - 0.1] });
+  const merl = (px, pz) => { A.body.push({ p:[px, h, pz], s:[0.55, 0.65, 0.55], c:light, o }); A.cap.push({ p:[px, h + 0.65, pz], s:[0.6, 0.1, 0.6] }); };
+  for (let px = -w/2 + 0.3; px <= w/2 - 0.29; px += 1.0){ merl(x + px, z + d/2 - 0.28); merl(x + px, z - d/2 + 0.28); }
+  for (let pz = -d/2 + 1.3; pz <= d/2 - 1.29; pz += 1.0){ merl(x + w/2 - 0.28, z + pz); merl(x - w/2 + 0.28, z + pz); }
+  const tr = 1.05, th = h + 2.2;
+  for (const s of [-1, 1]){
+    const c = along(s*(w/2), 0, d/2 - 0.2);
+    A.cyl.push({ p:[c.x, 0, c.z], s:[tr, th, tr], c:light });
+    A.cone.push({ p:[c.x, th, c.z], s:[tr + 0.3, 2.4, tr + 0.3], c:H.roof });
+    A.cone.push({ p:[c.x, th + 1.4, c.z], s:[0.56, 1.01, 0.56], c:0xf3f7ff });
+    for (const y of [2.4, th - 1.4]) A.win.push({ p:[c.x, y, c.z + f*(tr + 0.02)], s:[0.45, 0.9, 0.12], c:[H.left ? 9 : 0.1 + r()*0.5, r(), r()*0.5] });
+  }
+  const fl = along(-(w/2), 0, d/2 - 0.2), ft = th + 2.4;
+  A.cyl.push({ p:[fl.x, ft - 0.1, fl.z], s:[0.04, 1.4, 0.04], c:0x2a2f45 });
+  A.body.push({ p:[fl.x + 0.45, ft + 0.7, fl.z], s:[0.9, 0.55, 0.05], c:H.flag, o });
+  // ворота с аркой
+  A.cyl.push({ p:[x, 2.6, ff], s:[1.0, 0.08, 1.0], q:qs, c:light });
+  A.cyl.push({ p:[x, 2.6, ff + f*0.02], s:[0.8, 0.14, 0.8], q:qs, c:0x4a2c20 });
+  A.door.push({ p:[x, 1.3, ff + f*0.08], s:[1.6, 2.6, 0.14], c:0x4a2c20 });
+  for (const s of [-1, 1]) for (const y of [2.0, 3.8]) A.win.push({ p:[x + s*1.7, y, ff], s:[0.6, 1.2, 0.12], c:[H.left ? 9 : 0.1 + r()*0.6, r(), r()*0.5] });
+  if (H.garland) lampLights(gar, x - w/2 + 0.5, x + w/2 - 0.5, h - 0.25, ff + f*0.1, 0.3, r() < 0.5 ? LIGHTS_WARM : LIGHTS_MULTI, H.n);
+  if (!H.left) for (const s of [-1, 1]){ gar.pos.push(x + s*1.15, 2.7, ff + f*0.2); gar.aColor.push(1, 0.6, 0.25); gar.aPhase.push(r()); gar.aSize.push(0.5); }
+  const pathEnd = z + f*8.4;
+  A.path.push({ p:[x, 0.045, (ff + pathEnd)/2], s:[1.8, 1, Math.abs(pathEnd - ff)] });
+  emitYard(H, A, gar, r);
+}
+function emitIgloo(H, A, gar, smk, addTree){
+  const { x, z, facing:f, idx:o } = H, r = rng(H.n*53 + 7), along = alongOf(H);
+  const R = 3.1, ice = H.body, t0 = R*0.55, tl = 2.2;
+  A.sph.push({ p:[x, 0, z], s:[R, R*0.86, R], c:ice });
+  A.cyl.push({ p:[x, 0, z + (f > 0 ? t0 : -(t0 + tl))], s:[1.15, tl, 1.15], q:QX90, c:0xdde9f8 });
+  A.win.push({ p:[x, 0.5, z + f*(t0 + tl + 0.03)], s:[1.1, 0.95, 0.1], c: H.left ? [9,0,0] : [-0.5,0.05,0] });
+  // табличка на столбиках над входом
+  const sz = H.signZ - f*0.05;
+  for (const s of [-0.8, 0.8]) A.cyl.push({ p:[x + s, 0.8, sz], s:[0.05, 0.85, 0.05], c:0x6a4a32 });
+  // печная труба
+  const px = x + 0.9, pz = z - f*1.2;
+  A.cyl.push({ p:[px, 2.0, pz], s:[0.14, 1.6, 0.14], c:0x3a3f4d });
+  A.cyl.push({ p:[px, 3.6, pz], s:[0.22, 0.1, 0.22], c:0x3a3f4d });
+  if (!H.left) for (let i = 0; i < 4; i++){ smk.pos.push(px, 3.8, pz); smk.aPhase.push(i/4 + r()*0.1); }
+  // ледяные фонарики у входа
+  for (const s of [-1, 1]){
+    const lp = along(s*1.6, 0, t0 + tl - 0.2);
+    A.body.push({ p:[lp.x, 0, lp.z], s:[0.4, 0.5, 0.4], c:0xbfe6ff, o });
+    if (!H.left){ gar.pos.push(lp.x, 0.35, lp.z); gar.aColor.push(0.5, 0.85, 1); gar.aPhase.push(r()); gar.aSize.push(0.8); }
+  }
+  const fe = z + f*(t0 + tl), pathEnd = z + f*8.4;
+  A.path.push({ p:[x, 0.045, (fe + pathEnd)/2], s:[1.6, 1, Math.abs(pathEnd - fe)] });
+  emitYard(H, A, gar, r, [[-3.2, 3.6], [3.2, 3.6]]);
+}
+function emitWindmill(H, A, gar, smk, addTree){
+  const { x, z, facing:f, idx:o } = H, r = rng(H.n*59 + 5), along = alongOf(H), qs = f > 0 ? QX90 : QXm90;
+  const R = 2.3, th = 6.4, topR = R*0.78, rad = y => R*(1 - 0.22*y/th);
+  A.cyl.push({ p:[x, 0, z], s:[R + 0.12, 0.6, R + 0.12], c:0x8a8f9e });
+  A.frus.push({ p:[x, 0, z], s:[R, th, R], c:H.body });
+  A.cone.push({ p:[x, th, z], s:[topR + 0.35, 2.4, topR + 0.35], c:H.roof });
+  A.cone.push({ p:[x, th + 1.4, z], s:[0.95, 1.0, 0.95], c:0xf3f7ff });
+  A.door.push({ p:[x, 1.1, z + f*(rad(1.1) + 0.03)], s:[1.0, 2.2, 0.14], c:H.door });
+  A.win.push({ p:[x, 3.9, z + f*(rad(3.9) + 0.02)], s:[0.7, 0.9, 0.12], c:[H.left ? 9 : 0.15 + r()*0.5, r(), r()*0.5] });
+  for (const s of [-1, 1]) for (const y of [2.2, 4.6]) A.win.push({ p:[x + s*(rad(y) + 0.02), y, z], s:[0.12, 0.85, 0.65], c:[H.left ? 9 : 0.15 + r()*0.5, r(), r()*0.5] });
+  // ось и крылья
+  const hy = 5.4, hz = z + f*(rad(hy) + 0.4);
+  A.cyl.push({ p:[x, hy, z + f*rad(hy)*0.8], s:[0.12, 0.7, 0.12], q:qs, c:0x3a2a20 });
+  A.sph.push({ p:[x, hy, hz], s:[0.32, 0.32, 0.32], c:0x3a2a20 });
+  const a0 = Math.PI/4 + ((H.n*0.37) % 1 - 0.5)*0.5;
+  for (let k = 0; k < 4; k++){
+    const a = a0 + k*Math.PI/2, dx = -Math.sin(a), dy = Math.cos(a);
+    beam(A, x + dx*2.6, hy + dy*2.6, hz + f*0.08, 5.2, a, 0.18, 0.14, 0x6b4a32, o);
+    beam(A, x + dx*3.0, hy + dy*3.0, hz + f*0.14, 4.0, a, 0.9, 0.06, H.sail, o);
+  }
+  if (H.garland){ const nn = 26; for (let i = 0; i < nn; i++){ const a = i/nn*Math.PI*2; gar.pos.push(x + Math.cos(a)*(topR + 0.4), th + 0.05, z + Math.sin(a)*(topR + 0.4)); const c = LIGHTS_WARM[i % 2]; gar.aColor.push(c[0], c[1], c[2]); gar.aPhase.push(r()); gar.aSize.push(0.42); } }
+  const fe = z + f*rad(0), pathEnd = z + f*8.4;
+  A.path.push({ p:[x, 0.045, (fe + pathEnd)/2], s:[1.6, 1, Math.abs(pathEnd - fe)] });
+  addTree(x + (r() < 0.5 ? -1 : 1)*3.6, z - f*2.8, 0.8);
+  emitYard(H, A, gar, r, [[-3.2, 3.6], [3.2, 3.6]]);
+}
+function emitBarn(H, A, gar, smk, addTree){
+  const { x, z, facing:f, w, d, h, rh, idx:o } = H, r = rng(H.n*61 + 3), along = alongOf(H);
+  const ff = z + f*(d/2 + 0.03), rw = w + 0.8, rd = d + 0.9, fg = z + f*(rd/2 + 0.03), trim = 0xf4f7fd, side = H.n % 2 ? 1 : -1;
+  A.body.push({ p:[x, 0, z], s:[w, h, d], c:H.body, o });
+  A.roof.push({ p:[x, h, z], s:[rd, rh, rw], q:Q90, c:H.roof, o });
+  A.snow.push({ p:[x, h + 0.3, z], s:[rd - 0.25, rh, rw*0.98], q:Q90, o });
+  // ворота с белыми раскосами
+  const dw = 2.8, dh = 3.0, dz = ff + f*0.05;
+  A.door.push({ p:[x, dh/2, ff + f*0.03], s:[dw, dh, 0.1], c:0x5a2a22 });
+  for (const s of [-1, 0, 1]) A.body.push({ p:[x + s*dw/2, 0, dz], s:[0.16, dh, 0.08], c:trim, o });
+  A.body.push({ p:[x, dh - 0.16, dz], s:[dw + 0.16, 0.16, 0.08], c:trim, o });
+  const bl = Math.hypot(dw/2, dh) - 0.25, ba = Math.atan2(dw/2, dh);
+  for (const s of [-1, 1]) for (const sg of [-1, 1]) beam(A, x + s*dw/4, dh/2, dz + f*0.01, bl, sg*ba, 0.14, 0.06, trim, o);
+  // сеновал, белые края фронтона и углы
+  A.door.push({ p:[x, h + 0.8, fg + f*0.02], s:[1.3, 1.2, 0.1], c:0x5a2a22 });
+  A.body.push({ p:[x, h + 1.4, fg + f*0.05], s:[1.5, 0.12, 0.08], c:trim, o });
+  A.body.push({ p:[x, h + 0.14, fg + f*0.05], s:[1.5, 0.12, 0.08], c:trim, o });
+  const L = Math.hypot(rw/2, rh), ang = Math.atan2(rw/2, rh);
+  beam(A, x - rw/4, h + rh/2 - 0.1, fg + f*0.05, L, -ang, 0.25, 0.08, trim, o);
+  beam(A, x + rw/4, h + rh/2 - 0.1, fg + f*0.05, L, ang, 0.25, 0.08, trim, o);
+  for (const s of [-1, 1]) A.body.push({ p:[x + s*(w/2 - 0.08), 0, ff + f*0.02], s:[0.2, h, 0.08], c:trim, o });
+  for (const s of [-1, 1]) A.win.push({ p:[x + s*2.3, 2.3, ff], s:[0.7, 0.8, 0.12], c:[H.left ? 9 : 0.15 + r()*0.5, r(), r()*0.5] });
+  for (const s of [-1, 1]) for (const zz of [-1.4, 1.4]) A.win.push({ p:[x + s*(w/2 + 0.03), 2.3, z + zz], s:[0.12, 0.8, 0.7], c:[H.left ? 9 : 0.15 + r()*0.5, r(), r()*0.5] });
+  // башенка на коньке
+  A.body.push({ p:[x, h + rh - 0.6, z], s:[0.9, 1.0, 0.9], c:trim, o });
+  A.roof.push({ p:[x, h + rh + 0.4, z], s:[1.2, 0.55, 1.2], q:Q90, c:H.roof, o });
+  // силос и тюки сена
+  const sp = along(side*(w/2 + 1.0), 0, -1.6);
+  A.cyl.push({ p:[sp.x, 0, sp.z], s:[1.0, 6.8, 1.0], c:0xc9ccd4 });
+  for (const y of [2.3, 4.6]) A.cyl.push({ p:[sp.x, y, sp.z], s:[1.04, 0.12, 1.04], c:0x8a8f9e });
+  A.sph.push({ p:[sp.x, 6.8, sp.z], s:[1.02, 0.8, 1.02], c:0xb8bcc6 });
+  for (let i = 0; i < 2; i++){ const bp = along(side*(2.4 + i*0.0), 0, d/2 + 2.0 + i*1.2); A.cyl.push({ p:[bp.x - 0.55, 0.55, bp.z], s:[0.55, 1.1, 0.55], q:QZm90, c:0xe2c24a }); }
+  if (H.garland){
+    const gz = fg + f*0.15, nn = Math.round(L/0.42);
+    for (const s of [-1, 1]) for (let i = 0; i < nn; i++){ const t = i/nn; gar.pos.push(x + s*(rw/2)*(1 - t), h + rh*t + 0.05, gz); const c = LIGHTS_WARM[i % 2]; gar.aColor.push(c[0], c[1], c[2]); gar.aPhase.push(r()); gar.aSize.push(0.42); }
+  }
+  const pathEnd = z + f*8.4;
+  A.path.push({ p:[x, 0.045, (ff + pathEnd)/2], s:[2.6, 1, Math.abs(pathEnd - ff)] });
+  emitYard(H, A, gar, r, [[-side*3.1, d/2 + 2.7]]);
+}
+function emitIce(H, A, gar, smk, addTree){
+  emitBasic(H, A, gar, smk, addTree);
+  const { x, z, w, d, h } = H, r = rng(H.n*67 + 1);
+  if (!H.ridgeZ){
+    for (const s of [1, -1]){ const ez = z + s*((d + 0.9)/2 - 0.1);
+      for (let px = -w/2 - 0.3; px <= w/2 + 0.3; px += 0.42) A.cone.push({ p:[x + px, h - 0.05, ez], s:[0.09, 0.35 + r()*0.7, 0.09], q:QXPI, c:0xe6f6ff }); }
+  } else {
+    for (const s of [1, -1]){ const ex = x + s*((w + 0.8)/2 - 0.1);
+      for (let pz = -d/2 - 0.3; pz <= d/2 + 0.3; pz += 0.42) A.cone.push({ p:[ex, h - 0.05, z + pz], s:[0.09, 0.35 + r()*0.7, 0.09], q:QXPI, c:0xe6f6ff }); }
+  }
+}
+
+/* ---------- белый дом, столовая, ресторан ---------- */
+const CANTEEN_SIGN = { title:'Столовая', bg:'#2f6b45', ink:'#ffffff', edge:'#ffd36a' };
+const RESTAURANT_SIGN = { title:'Ресторан', bg:'#16121c', ink:'#f1d07a', edge:'#c9a24a' };
+function emitWhite(H, A, gar, smk, addTree){
+  emitBasic(H, A, gar, smk, addTree);
+  const { x, z, facing:f, w, d, h, rh, idx:o } = H, r = rng(H.n*83 + 5), along = alongOf(H);
+  const fz = z + f*(d/2 + 0.03), brown = H.roof, white = 0xf6f6f2;
+  // коричневые ставни на всех окнах фасада
+  for (const [wy, ww, xs] of [[1.9, 1.25, [-w*0.3, w*0.3]], [4.55, 1.1, [-w*0.28, 0, w*0.28]]])
+    for (const wx of xs) for (const s of [-1, 1]){ if (wy > 3 && wx === 0) continue; A.body.push({ p:[x + wx + s*(ww/2 + 0.2), wy - 0.6, fz + f*0.01], s:[0.34, 1.2, 0.08], c:brown, o }); }
+  // широкая веранда с колоннами во всю ширину
+  const pz = fz + f*0.95;
+  A.body.push({ p:[x, 3.05, pz], s:[w + 0.4, 0.2, 1.9], c:white, o });
+  A.body.push({ p:[x, 3.25, pz], s:[w + 0.5, 0.12, 2.0], c:brown, o });
+  A.cap.push({ p:[x, 3.37, pz], s:[w + 0.4, 0.1, 1.9] });
+  for (const cx of [-(w/2), -1.2, 1.2, w/2]) A.colm.push({ p:[x + cx, 0.3, fz + f*1.75], s:[1.2, 2.75, 1.2] });
+  A.body.push({ p:[x, 0, pz], s:[w + 0.4, 0.3, 1.9], c:0xd9d2c4, o });
+  for (const s of [-1, 1]) A.body.push({ p:[x + s*(w/4 + 0.6), 0.75, fz + f*1.75], s:[w/2 - 1.6, 0.08, 0.08], c:white, o });
+  // вторая труба
+  const cx = x - (H.chimSide || 1)*w*0.25, cz = z - f*d*0.16, cy = h + rh*0.45, ch = rh*0.75 + 0.9;
+  A.chim.push({ p:[cx, cy, cz], s:[0.75, ch, 0.75] }); A.cap.push({ p:[cx, cy + ch, cz], s:[0.95, 0.28, 0.95] });
+  // белый заборчик по краям участка
+  yardItem('fence', along(-3.1, 0, d/2 + 3.4), H, A, gar, r);
+  yardItem('fence', along(3.1, 0, d/2 + 3.4), H, A, gar, r);
+  if (!H.left){ A.torus.push({ p:[x, 1.6, fz + f*0.13], s:[0.3, 0.3, 0.3], c:0x2f6b45 }); A.sph.push({ p:[x, 1.33, fz + f*0.2], s:[0.1, 0.1, 0.1], c:0xd8352f }); }
+}
+function emitCanteen(H, A, gar, smk, addTree){
+  const { x, z, facing:f, w, d, h, idx:o } = H, r = rng(H.n*89 + 1), along = alongOf(H), rotY = f > 0 ? 0 : Math.PI, qs = f > 0 ? QX90 : QXm90;
+  const front = z + f*(d/2 + 0.03), trim = 0x2f6b45, lit = H.left ? [9,0,0] : [-0.5, 0.05, 0];
+  A.body.push({ p:[x, 0, z], s:[w, h, d], c:H.body, o });
+  A.body.push({ p:[x, h, z], s:[w + 0.3, 0.55, d + 0.3], c:0xf4f6fb, o });
+  A.cap.push({ p:[x, h + 0.55, z], s:[w + 0.1, 0.25, d + 0.1] });
+  A.body.push({ p:[x, 0, front + f*0.02], s:[w + 0.1, 0.5, 0.12], c:trim, o });
+  // ленточное остекление
+  for (const lx of [-3.2, -1.1, 1.0]){ const q = along(lx, 0, 0); A.win.push({ p:[q.x, 2.0, front], s:[1.9, 1.9, 0.12], c:lit }); }
+  for (const lx of [-4.2, -2.15, -0.05, 2.05]){ const q = along(lx, 0, d/2 + 0.08); A.body.push({ p:[q.x, 0.5, q.z], s:[0.16, h - 0.5, 0.12], c:trim, o }); }
+  // стеклянные двери и плоский козырёк
+  const dp = along(3.3, 0, 0);
+  A.door.push({ p:[dp.x, 1.2, front + f*0.04], s:[1.8, 2.4, 0.14], c:trim });
+  A.win.push({ p:[dp.x, 1.25, front + f*0.12], s:[1.5, 2.0, 0.06], c:lit });
+  const cp = along(3.3, 0, d/2 + 0.8);
+  A.body.push({ p:[cp.x, 2.75, cp.z], s:[2.6, 0.18, 1.6], c:trim, o });
+  A.cap.push({ p:[cp.x, 2.93, cp.z], s:[2.5, 0.1, 1.5] });
+  for (const s of [-1, 1]){ const q = along(3.3 + s*1.15, 0, d/2 + 1.45); A.body.push({ p:[q.x, 0, q.z], s:[0.12, 2.75, 0.12], c:0xb8bcc6, o }); }
+  // вывеска на крыше
+  const signZ = d/2 - 0.7, signY = h + 0.8 + 1.25;
+  shopSign(H, CANTEEN_SIGN, along, rotY, signY, signZ, H.left ? 'закрыто' : 'у ' + (H.name || 'жителя №' + H.n));
+  const bp = along(-0.6, 0, signZ); A.body.push({ p:[bp.x, signY - 1.3, bp.z], s:[6.2, 2.6, 0.24], c:0x2a2f45, o });
+  for (const lx of [-2.8, 1.6]){ const q = along(lx, 0, signZ - 0.1); A.body.push({ p:[q.x, h + 0.55, q.z], s:[0.2, 0.8, 0.2], c:0x2a2f45, o }); }
+  // тарелка с вилкой и ложкой
+  const pp = along(3.4, 0, -1.2), py = h + 0.8 + 1.6;
+  A.cyl.push({ p:[pp.x, py, pp.z], s:[1.25, 0.12, 1.25], q:qs, c:0xf6f2ea });
+  A.cyl.push({ p:[pp.x, py, pp.z + f*0.1], s:[0.85, 0.05, 0.85], q:qs, c:0xdfe6f0 });
+  A.cyl.push({ p:[pp.x, h + 0.8, pp.z], s:[0.08, 0.6, 0.08], c:0x2a2f45 });
+  for (const s of [-1, 1]){
+    const ux = pp.x + s*1.65;
+    A.body.push({ p:[ux, h + 0.8, pp.z], s:[0.14, 2.1, 0.08], c:0xc9ccd4, o });
+    if (s < 0) for (const t of [-0.15, 0, 0.15]) A.body.push({ p:[ux + t, h + 2.9, pp.z], s:[0.06, 0.55, 0.06], c:0xc9ccd4, o });
+    else A.sph.push({ p:[ux, h + 3.1, pp.z], s:[0.25, 0.38, 0.08], c:0xc9ccd4 });
+  }
+  // вытяжки с паром
+  for (const lx of [-3.6, 0.6]){ const q = along(lx, 0, -d*0.3); A.body.push({ p:[q.x, h + 0.55, q.z], s:[0.8, 0.9, 0.8], c:0xb8bcc6, o }); if (!H.left) for (let i = 0; i < 4; i++){ smk.pos.push(q.x, h + 1.6, q.z); smk.aPhase.push(i/4 + r()*0.1); } }
+  if (!H.left) lampLights(gar, x - w/2, x + w/2, h + 0.5, front + f*0.12, 0.15, LIGHTS_WARM, H.n);
+  yardItem('bench', along(-1.1, 0, d/2 + 1.4), H, A, gar, r);
+  yardItem('lantern', along(-4.2, 0, d/2 + 1.2), H, A, gar, r);
+  const pathEnd = z + f*8.4;
+  A.path.push({ p:[dp.x, 0.045, (front + pathEnd)/2], s:[2.0, 1, Math.abs(pathEnd - front)] });
+}
+function emitRestaurant(H, A, gar, smk, addTree){
+  const { x, z, facing:f, w, d, h, idx:o } = H, r = rng(H.n*97 + 7), along = alongOf(H), rotY = f > 0 ? 0 : Math.PI, qs = f > 0 ? QX90 : QXm90;
+  const front = z + f*(d/2 + 0.03), gold = 0xc9a24a, lit = () => H.left ? [9,0,0] : [-0.5, 0.05 + r()*0.1, 0];
+  A.body.push({ p:[x, 0, z], s:[w, h, d], c:H.body, o });
+  A.body.push({ p:[x, 3.4, z], s:[w + 0.2, 0.22, d + 0.2], c:gold, o });
+  A.body.push({ p:[x, h, z], s:[w + 0.5, 0.45, d + 0.5], c:gold, o });
+  A.cap.push({ p:[x, h + 0.45, z], s:[w + 0.3, 0.25, d + 0.3] });
+  A.body.push({ p:[x, 0, front + f*0.02], s:[w + 0.1, 0.45, 0.12], c:0x2a1c22, o });
+  // арочные окна первого этажа
+  for (const lx of [-3.0, 3.0]){ const q = along(lx, 0, 0);
+    A.win.push({ p:[q.x, 1.6, front], s:[1.5, 2.0, 0.12], c:lit() });
+    A.cyl.push({ p:[q.x, 2.6, front - f*0.02], s:[0.75, 0.1, 0.75], q:qs, c:0xffd28a });
+    A.cyl.push({ p:[q.x, 2.6, front - f*0.04], s:[0.92, 0.08, 0.92], q:qs, c:gold });
+  }
+  // окна второго этажа с французскими балкончиками
+  for (const lx of [-3.0, -1.0, 1.0, 3.0]){ const q = along(lx, 0, 0);
+    A.win.push({ p:[q.x, 5.2, front], s:[1.1, 1.6, 0.12], c:lit() });
+    A.body.push({ p:[q.x, 4.25, front + f*0.25], s:[1.4, 0.1, 0.5], c:gold, o });
+    A.body.push({ p:[q.x, 4.35, front + f*0.48], s:[1.4, 0.45, 0.05], c:0x1a1a1a, o });
+  }
+  // вход: двойная дверь, длинный козырёк до тротуара, ковровая дорожка
+  A.door.push({ p:[x, 1.3, front + f*0.04], s:[1.7, 2.6, 0.14], c:0x2a1c22 });
+  A.body.push({ p:[x, 2.6, front + f*0.06], s:[1.9, 0.18, 0.08], c:gold, o });
+  const cz = z + f*(d/2 + 1.6);
+  A.body.push({ p:[x, 2.85, cz], s:[2.4, 0.22, 3.2], c:0x7a1f2b, o });
+  A.cap.push({ p:[x, 3.07, cz], s:[2.3, 0.1, 3.1] });
+  for (const s of [-1, 1]) A.cyl.push({ p:[x + s*1.1, 0, z + f*(d/2 + 3.1)], s:[0.07, 2.85, 0.07], c:gold });
+  A.body.push({ p:[x, 0.02, z + f*(d/2 + 2.3)], s:[1.3, 0.04, 4.6], c:0xa61f2f, o });
+  // деревца-шары в кадках
+  for (const s of [-1, 1]){ const q = along(s*2.1, 0, d/2 + 0.9);
+    A.body.push({ p:[q.x, 0, q.z], s:[0.7, 0.6, 0.7], c:0x2a1c22, o });
+    A.cyl.push({ p:[q.x, 0.6, q.z], s:[0.06, 0.6, 0.06], c:0x5a3d2b });
+    A.sph.push({ p:[q.x, 1.55, q.z], s:[0.55, 0.55, 0.55], c:0x2f6b3a });
+    A.cap.push({ p:[q.x, 1.95, q.z], s:[0.5, 0.12, 0.5] });
+  }
+  // вывеска и серебряный клош на крыше
+  const signZ = d/2 - 0.7, signY = h + 0.7 + 1.25;
+  shopSign(H, RESTAURANT_SIGN, along, rotY, signY, signZ, H.left ? 'закрыто' : 'у ' + (H.name || 'жителя №' + H.n));
+  const bp = along(-0.6, 0, signZ); A.body.push({ p:[bp.x, signY - 1.3, bp.z], s:[6.2, 2.6, 0.24], c:0x16121c, o });
+  for (const lx of [-2.8, 1.6]){ const q = along(lx, 0, signZ - 0.1); A.body.push({ p:[q.x, h + 0.45, q.z], s:[0.2, 0.9, 0.2], c:0x16121c, o }); }
+  const pp = along(3.3, 0, -1.4), py = h + 0.7;
+  A.cyl.push({ p:[pp.x, py, pp.z], s:[1.3, 0.12, 1.3], c:0xd8dce6 });
+  A.sph.push({ p:[pp.x, py + 0.12, pp.z], s:[1.05, 0.95, 1.05], c:0xc9ccd4 });
+  A.sph.push({ p:[pp.x, py + 1.12, pp.z], s:[0.16, 0.16, 0.16], c:gold });
+  if (!H.left){
+    lampLights(gar, x - w/2 - 0.2, x + w/2 + 0.2, h + 0.2, front + f*0.3, 0, LIGHTS_WARM, H.n);
+    lampLights(gar, x - w/2 - 0.1, x + w/2 + 0.1, 3.5, front + f*0.18, 0.2, LIGHTS_WARM, H.n + 1);
+    for (const s of [-1, 1]){ gar.pos.push(x + s*1.1, 2.95, z + f*(d/2 + 3.1)); gar.aColor.push(1, 0.82, 0.5); gar.aPhase.push(r()); gar.aSize.push(0.5); }
+  }
 }
 
 function emitHouse(H, A, gar, smk, addTree){
@@ -1220,6 +1864,16 @@ function emitHouse(H, A, gar, smk, addTree){
   if (H.type === 'tower') return emitTower(H, A, gar, smk, addTree);
   if (H.type === 'chalet') return emitChalet(H, A, gar, smk, addTree);
   if (H.type === 'gingerbread') return emitGingerbread(H, A, gar, smk, addTree);
+  if (H.type === 'izba') return emitIzba(H, A, gar, smk, addTree);
+  if (H.type === 'modern') return emitModern(H, A, gar, smk, addTree);
+  if (H.type === 'castle') return emitCastle(H, A, gar, smk, addTree);
+  if (H.type === 'igloo') return emitIgloo(H, A, gar, smk, addTree);
+  if (H.type === 'windmill') return emitWindmill(H, A, gar, smk, addTree);
+  if (H.type === 'barn') return emitBarn(H, A, gar, smk, addTree);
+  if (H.type === 'ice') return emitIce(H, A, gar, smk, addTree);
+  if (H.type === 'white') return emitWhite(H, A, gar, smk, addTree);
+  if (H.type === 'canteen') return emitCanteen(H, A, gar, smk, addTree);
+  if (H.type === 'restaurant') return emitRestaurant(H, A, gar, smk, addTree);
   return emitBasic(H, A, gar, smk, addTree);
 }
 function emitBasic(H, A, gar, smk, addTree){
@@ -1228,7 +1882,8 @@ function emitBasic(H, A, gar, smk, addTree){
   A.body.push({ p:[x,0,z], s:[w,h,d], c:H.body, o:H.idx });
   if (!H.ridgeZ){
     A.roof.push({ p:[x,h,z], s:[w+0.8, rh, d+0.9], c:H.roof, o:H.idx });
-    A.snow.push({ p:[x,h+0.3,z], s:[w+0.55, rh, (d+0.9)*0.98], o:H.idx });
+    if (H.noSnowRoof) A.snow.push({ p:[x,h+rh*0.72,z], s:[w+0.7, rh*0.3, (d+0.9)*0.3], o:H.idx });
+    else A.snow.push({ p:[x,h+0.3,z], s:[w+0.55, rh, (d+0.9)*0.98], o:H.idx });
   } else {
     A.roof.push({ p:[x,h,z], s:[d+0.9, rh, w+0.8], q:Q90, c:H.roof, o:H.idx });
     A.snow.push({ p:[x,h+0.3,z], s:[d+0.65, rh, (w+0.8)*0.98], q:Q90, o:H.idx });
@@ -1262,7 +1917,7 @@ function emitBasic(H, A, gar, smk, addTree){
   }
   // гирлянда
   if (H.garland){
-    const pal = H.warm ? LIGHTS_WARM : LIGHTS_MULTI;
+    const pal = H.pal || (H.warm ? LIGHTS_WARM : LIGHTS_MULTI);
     let k = 0;
     if (!H.ridgeZ){
       const gz = z + f*(d/2 + 0.5), L = w + 0.8, n = Math.round(L/0.42);
@@ -1273,6 +1928,7 @@ function emitBasic(H, A, gar, smk, addTree){
       for (const s of [-1,1]) for (let i=0;i<n;i++){ const t = i/n; gar.pos.push(x + s*L*(1-t), h + rh*t - 0.05, gz); const c = pal[k++ % pal.length]; gar.aColor.push(...c); gar.aPhase.push(r()); gar.aSize.push(0.42); }
     }
   }
+  if (!H.type || H.type === 'big' || H.type === 'ice') basicExtras(H, A, gar, win, fz);
   if (H.backTree) addTree(x + (r()-0.5)*w, z - f*(d/2 + 2.6), 0.6 + r()*0.4);
   if (H.type === 'big'){ addTree(x - w/2 + 0.4, z + f*(d/2 + 2.0), 0.55); addTree(x + w/2 - 0.4, z + f*(d/2 + 2.0), 0.55); A.bulb.push({ p:[x - 0.95, 2.45, fz + f*0.25], s:[0.16,0.16,0.16] }); }
 }
@@ -1725,10 +2381,10 @@ const STORY_FOV = 52;
 function storyShot(h){
   // камера над дорогой перед домом, чуть сбоку и сверху — чтобы не упереться в дом напротив
   const size = Math.max(h.w, h.d, h.top);
-  const Dh = 9 + size*0.9;
+  const Dh = 11 + size*1.05;
   const side = (h.n % 2 ? 1 : -1)*0.48;
   const dx = Math.sin(side), dz = h.facing*Math.cos(side);
-  return { pos: new THREE.Vector3(h.x + dx*Dh, h.top*0.5 + Dh*0.55, h.z + dz*Dh), target: new THREE.Vector3(h.x, h.top*0.38, h.z) };
+  return { pos: new THREE.Vector3(h.x + dx*Dh, h.top*0.5 + Dh*0.5, h.z + dz*Dh), target: new THREE.Vector3(h.x, h.top*0.36, h.z) };
 }
 function makeStory(h){
   const W = 1080, HH = 1920;
@@ -1853,10 +2509,21 @@ function loop(now){
   requestAnimationFrame(loop);
 }
 
+function showDraftBanner(){
+  const b = document.createElement('div');
+  b.style.cssText = 'position:fixed;left:50%;top:max(12px,env(safe-area-inset-top));transform:translateX(-50%);z-index:50;background:#ffb43a;color:#3a1a00;font:800 14px/1.2 Manrope,Arial,sans-serif;padding:9px 14px;border-radius:999px;box-shadow:0 6px 18px rgba(0,0,0,.3);display:flex;gap:10px;align-items:center;max-width:calc(100vw - 32px)';
+  const t = document.createElement('span'); t.textContent = 'Черновик из редактора: видишь только ты';
+  const a = document.createElement('a'); a.textContent = 'выйти'; a.href = location.pathname; a.style.cssText = 'color:#3a1a00;text-decoration:underline';
+  a.addEventListener('click', e => { e.preventDefault(); location.replace(location.pathname); });
+  b.append(t, a); document.body.appendChild(b);
+}
 async function start(){
   try { await Promise.race([Promise.all([document.fonts.load('40px Lobster', 'Снежный город Каток Ярмарка'), document.fonts.load('800 40px Manrope', 'откроется жителях abc_09'), document.fonts.load('700 40px Manrope', 'Житель abc')]), new Promise(r => setTimeout(r, 2500))]); } catch(e){}
   let list = null;
-  try {
+  if (location.hash === '#draft'){
+    try { const d = JSON.parse(localStorage.getItem('city-draft') || 'null'); const l = d && (Array.isArray(d) ? d : d.followers); if (Array.isArray(l) && l.length){ list = l; showDraftBanner(); } } catch(e){}
+  }
+  if (!list) try {
     const res = await fetch('followers.json', { cache:'no-store' });
     if (res.ok){ const j = await res.json(); list = Array.isArray(j) ? j : j.followers; }
   } catch(e){}

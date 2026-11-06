@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Редактор домов</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lobster&family=Manrope:wght@600;700;800&display=swap">
+<style>
+:root{--bg:#0b1027;--card:#f7faff;--ink:#152043;--muted:#5a6688;--line:rgba(21,32,67,.14);--red:#d8352f;--red-deep:#a3211d;--pine:#1f6a52;--amber:#ffb43a;
+  --f-script:"Lobster",Georgia,serif;--f-ui:"Manrope","Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(1200px 600px at 50% -10%,#26337a,var(--bg));color:var(--ink);font:600 15px/1.45 var(--f-ui);
+  padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 120px max(16px,env(safe-area-inset-left))}
+main{max-width:760px;margin:0 auto;display:grid;gap:14px}
+h1{margin:6px 0 0;font:400 38px/1.1 var(--f-script);color:#ff6a5f}
+.lead{margin:0;color:#c9d3f0}
+.lead a{color:#ffd9a0}
+.card{background:var(--card);border-radius:20px;padding:16px;display:grid;gap:12px;box-shadow:0 12px 34px rgba(0,0,0,.3)}
+.card h2{margin:0;font:800 17px/1.2 var(--f-ui)}
+.msg{margin:0;padding:10px 12px;border-radius:12px;background:#fff;border:1px solid var(--line);font-size:14px}
+.msg.err{background:#fff1f0;border-color:#f2b8b3;color:#8a1d18}
+.muted{color:var(--muted);font-size:13.5px;margin:0}
+input[type=search]{width:100%;height:46px;border-radius:12px;border:1.5px solid var(--line);padding:0 14px;font:700 15px var(--f-ui);color:var(--ink);background:#fff}
+.list{display:grid;gap:8px}
+.row{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.row.changed{border-color:var(--amber);box-shadow:0 0 0 2px rgba(255,180,58,.35)}
+.num{font:800 13px var(--f-ui);color:var(--muted);min-width:44px}
+.nick{font:800 15px var(--f-ui);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:#eef1f8;color:var(--muted);font:700 11.5px var(--f-ui);vertical-align:middle}
+.ctrls{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select{height:40px;border-radius:10px;border:1.5px solid var(--line);padding:0 10px;font:700 14px var(--f-ui);color:var(--ink);background:#fff;max-width:100%;flex:1 1 220px}
+.colors{display:flex;gap:8px;align-items:center;font:700 13px var(--f-ui);color:var(--muted)}
+.colors label{display:flex;gap:6px;align-items:center;cursor:pointer}
+input[type=color]{width:38px;height:32px;border:1.5px solid var(--line);border-radius:8px;padding:2px;background:#fff;cursor:pointer}
+input[type=color]:disabled{opacity:.35;cursor:default}
+.mini{height:34px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font:800 13px var(--f-ui);color:var(--ink);padding:0 10px;cursor:pointer}
+.mini:disabled{opacity:.4;cursor:default}
+.btn{height:48px;border-radius:14px;border:0;font:800 15px/1 var(--f-ui);cursor:pointer;padding:0 16px;background:var(--red);color:#fff;box-shadow:0 3px 0 var(--red-deep)}
+.btn.ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line);box-shadow:none}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.mini:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #e9b649;outline-offset:2px}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:12px max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:rgba(11,16,39,.92);backdrop-filter:blur(8px);border-top:1px solid rgba(255,255,255,.08)}
+.bar-in{max-width:760px;margin:0 auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.count{color:#fff;font:800 15px var(--f-ui);margin-right:auto}
+.count b{color:var(--amber)}
+ol{margin:0;padding-left:20px;display:grid;gap:6px}
+@media (max-width:560px){
+  body{padding-bottom:170px}
+  .count{flex:1 0 100%}
+  .bar .btn{flex:1 1 40%;height:42px;font-size:14px;padding:0 10px}
+}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Редактор домов</h1>
+    <p class="lead">Выбери жителям здания и цвета, посмотри черновик в городе, потом скачай <b>followers.json</b> и загрузи его на GitHub. Номера и адреса жителей не меняются. <a href="update.html">Обновить жителей из архива →</a></p>
+  </div>
+
+  <section class="card">
+    <p class="msg" id="status">Загружаю жителей…</p>
+    <p class="msg err" id="err" hidden></p>
+    <input type="search" id="q" placeholder="Найти по нику или номеру" autocomplete="off" disabled>
+    <div class="list" id="list"></div>
+    <button class="btn ghost" id="more" type="button" hidden>Показать ещё</button>
+  </section>
+
+  <section class="card">
+    <h2>Как выложить изменения</h2>
+    <ol>
+      <li>Нажми <b>«Посмотреть в городе»</b>: откроется город с твоими изменениями. Их видишь только ты, на сайте пока всё по-старому.</li>
+      <li>Если всё нравится, нажми <b>«Скачать followers.json»</b>.</li>
+      <li>На GitHub открой репозиторий, <b>Add file → Upload files</b>, перетащи файл и нажми <b>Commit changes</b>. Если файл скачался как «followers (1).json», сначала переименуй его в followers.json.</li>
+    </ol>
+    <p class="muted">Поменять сайт можно только загрузкой на GitHub, а доступ туда есть только у тебя. Даже если кто-то откроет эту страницу, он сможет лишь скачать файл себе. Правки, которые ты ещё не выложил, хранятся в этом браузере.</p>
+  </section>
+</main>
+
+<div class="bar">
+  <div class="bar-in">
+    <span class="count">Изменено: <b id="cnt">0</b></span>
+    <button class="btn ghost" id="reset" type="button" disabled>Сбросить</button>
+    <button class="btn ghost" id="preview" type="button" disabled>Посмотреть в городе</button>
+    <button class="btn" id="dl" type="button" disabled>Скачать followers.json</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const EDITS_KEY = 'city-edits', DRAFT_KEY = 'city-draft';
+// запасной список на случай, если не получится прочитать index.html
+let TYPE_NAMES = { big:'Большой дом', mansion:'Особняк', white:'Белый дом', tower:'Дом с башней', chalet:'Шале', gingerbread:'Пряничный домик', izba:'Изба',
+  modern:'Современный дом', castle:'Мини-замок', igloo:'Иглу', windmill:'Мельница', barn:'Ферма', ice:'Ледяной домик', doner:'Донерная', bakery:'Пекарня',
+  cafe:'Кофейня', gifts:'Магазин подарков', sweets:'Кондитерская', pizza:'Пиццерия', burger:'Бургерная', flowers:'Цветочный магазин', books:'Книжный',
+  barber:'Барбершоп', sushi:'Суши-бар', gym:'Спортзал', games:'Игровой клуб', tea:'Чайная', toys:'Магазин игрушек', decor:'Ёлочные игрушки',
+  hats:'Магазин шляп', canteen:'Столовая', restaurant:'Ресторан' };
+let HOUSE_GROUPS = { 'Дома':['big','mansion','white','tower','chalet','gingerbread','izba','modern','castle','igloo','windmill','barn','ice'],
+  'Бизнесы':['doner','bakery','cafe','gifts','sweets','pizza','burger','flowers','books','barber','sushi','gym','games','tea','toys','decor','hats','canteen','restaurant'] };
+let AUTO_ORDER = [], FIRST_SPECIAL = 100;
+
+let base = null;          // как сейчас на сайте: { updated, followers }
+let edits = {};           // n -> { house, color, roof } — только то, что меняли здесь
+let filtered = [], shown = 0;
+const PAGE = 80;
+
+const isHex = v => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+const baseOf = n => base.followers.find(f => f.n === n);
+function current(f){ const e = edits[f.n]; return e ? { house: e.house || '', color: e.color || '', roof: e.roof || '' } : { house: f.house || '', color: f.color || '', roof: f.roof || '' }; }
+function isChanged(f){ const c = current(f); return c.house !== (f.house || '') || c.color !== (f.color || '') || c.roof !== (f.roof || ''); }
+function autoName(n){ if (n > FIRST_SPECIAL) return 'обычный дом'; const t = AUTO_ORDER[n-1]; return t && TYPE_NAMES[t] ? TYPE_NAMES[t].toLowerCase() : 'особое здание'; }
+
+function buildList(){
+  // итоговый список: всё как на сайте + правки (только house/color/roof)
+  return base.followers.map(f => {
+    const o = { ...f }; const c = current(f);
+    delete o.house; delete o.color; delete o.roof;
+    if (c.house) o.house = c.house;
+    if (isHex(c.color)) o.color = c.color;
+    if (isHex(c.roof)) o.roof = c.roof;
+    return o;
+  });
+}
+function saveEdits(){
+  // храним только реальные отличия
+  for (const k of Object.keys(edits)){ const f = baseOf(+k); if (!f || !isChanged(f)) delete edits[k]; }
+  try { localStorage.setItem(EDITS_KEY, JSON.stringify(edits)); } catch(e){}
+  const n = Object.keys(edits).length;
+  $('cnt').textContent = n; $('dl').disabled = !n; $('reset').disabled = !n;
+}
+
+function rowEl(f){
+  const row = document.createElement('div'); row.className = 'row' + (isChanged(f) ? ' changed' : '');
+  const num = document.createElement('span'); num.className = 'num'; num.textContent = '№' + f.n;
+  const nick = document.createElement('span'); nick.className = 'nick'; nick.textContent = f.name || '(скрытый аккаунт)';
+  if (f.left){ const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'отписался'; nick.appendChild(t); }
+  const ctr = document.createElement('div'); ctr.className = 'ctrls';
+  const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Здание для ' + (f.name || '№' + f.n));
+  const oa = new Option('Авто: ' + autoName(f.n), ''); sel.add(oa);
+  sel.add(new Option('Обычный дом', 'normal'));
+  for (const [g, list] of Object.entries(HOUSE_GROUPS)){ const og = document.createElement('optgroup'); og.label = g; for (const t of list) if (TYPE_NAMES[t]) og.appendChild(new Option(TYPE_NAMES[t], t)); sel.appendChild(og); }
+  const c = current(f);
+  if (c.house && ![...sel.options].some(o => o.value === c.house)) sel.add(new Option('Неизвестный: ' + c.house, c.house));
+  sel.value = c.house;
+  const colors = document.createElement('div'); colors.className = 'colors';
+  const lab = document.createElement('label'); const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = !!(c.color || c.roof); lab.append(chk, 'свой цвет');
+  const cb = document.createElement('input'); cb.type = 'color'; cb.value = isHex(c.color) ? c.color : '#f4f6fb'; cb.title = 'Стены'; cb.setAttribute('aria-label', 'Цвет стен');
+  const cr = document.createElement('input'); cr.type = 'color'; cr.value = isHex(c.roof) ? c.roof : '#6b4226'; cr.title = 'Крыша'; cr.setAttribute('aria-label', 'Цвет крыши');
+  cb.disabled = cr.disabled = !chk.checked;
+  colors.append(lab, 'стены', cb, 'крыша', cr);
+  const undo = document.createElement('button'); undo.className = 'mini'; undo.type = 'button'; undo.textContent = 'Как было'; undo.disabled = !isChanged(f);
+  const commit = () => {
+    edits[f.n] = { house: sel.value, color: chk.checked ? cb.value : '', roof: chk.checked ? cr.value : '' };
+    saveEdits();
+    const ch = isChanged(f); row.classList.toggle('changed', ch); undo.disabled = !ch;
+  };
+  sel.addEventListener('change', commit);
+  chk.addEventListener('change', () => { cb.disabled = cr.disabled = !chk.checked; commit(); });
+  cb.addEventListener('input', commit); cr.addEventListener('input', commit);
+  undo.addEventListener('click', () => { delete edits[f.n]; saveEdits(); row.replaceWith(rowEl(f)); });
+  ctr.append(sel, colors, undo);
+  row.append(num, nick, ctr);
+  return row;
+}
+function render(reset){
+  const q = $('q').value.trim().toLowerCase().replace(/^@/, '').replace(/^№/, '');
+  if (reset){
+    filtered = base.followers.filter(f => !q || (f.name || '').toLowerCase().includes(q) || String(f.n) === q);
+    shown = 0; $('list').replaceChildren();
+  }
+  const frag = document.createDocumentFragment();
+  for (const f of filtered.slice(shown, shown + PAGE)) frag.appendChild(rowEl(f));
+  shown = Math.min(filtered.length, shown + PAGE);
+  $('list').appendChild(frag);
+  $('more').hidden = shown >= filtered.length;
+  if (!filtered.length){ const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'Никого не нашлось.'; $('list').appendChild(p); }
+}
+
+async function loadCatalog(){
+  // каталог зданий и порядок раздачи берём прямо из index.html, чтобы редактор всегда совпадал с городом
+  try {
+    const src = await (await fetch('index.html', { cache:'no-store' })).text();
+    const a = src.indexOf('/*@types-start'), b = src.indexOf('/*@types-end*/');
+    const rngSrc = (src.match(/function rng\(seed\)\{.*\}/) || [])[0];
+    const fs = (src.match(/const FIRST_SPECIAL = (\d+)/) || [])[1];
+    if (a < 0 || b < 0 || !rngSrc || !fs) return;
+    const body = src.slice(src.indexOf('\n', a) + 1, b);
+    const out = new Function(rngSrc + ';const FIRST_SPECIAL=' + fs + ';' + body + ';return { TYPE_NAMES, HOUSE_GROUPS, AUTO_ORDER, FIRST_SPECIAL };')();
+    TYPE_NAMES = out.TYPE_NAMES; HOUSE_GROUPS = out.HOUSE_GROUPS; AUTO_ORDER = out.AUTO_ORDER; FIRST_SPECIAL = out.FIRST_SPECIAL;
+  } catch(e){}
+}
+
+(async () => {
+  try {
+    await loadCatalog();
+    const res = await fetch('followers.json', { cache:'no-store' });
+    const j = await res.json();
+    const list = (Array.isArray(j) ? j : j.followers).filter(f => f && typeof f.n === 'number').sort((x, y) => x.n - y.n);
+    base = { updated: j.updated, followers: list };
+    try { edits = JSON.parse(localStorage.getItem(EDITS_KEY) || '{}') || {}; } catch(e){ edits = {}; }
+    saveEdits();
+    const kept = Object.keys(edits).length;
+    $('status').textContent = `В городе ${list.filter(f => !f.left).length.toLocaleString('ru-RU')} жителей.` + (kept ? ` Есть несохранённые правки: ${kept}. Они подсвечены.` : ' Выбери, кому поменять здание.');
+    $('q').disabled = false; $('preview').disabled = false;
+    render(true);
+  } catch(e){
+    $('status').hidden = true; const er = $('err'); er.hidden = false;
+    er.textContent = 'Не получилось загрузить жителей. Открой эту страницу на своём сайте (адрес-сайта/edit.html), а не из папки.';
+  }
+})();
+
+$('q').addEventListener('input', () => render(true));
+$('more').addEventListener('click', () => render(false));
+$('reset').addEventListener('click', () => { edits = {}; saveEdits(); render(true); });
+$('preview').addEventListener('click', () => {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ updated: new Date().toISOString(), followers: buildList() })); }
+  catch(e){ const er = $('err'); er.hidden = false; er.textContent = 'Браузер не дал сохранить черновик (возможно, режим инкогнито). Скачай файл и проверь уже на сайте.'; return; }
+  window.open('index.html#draft', '_blank');
+});
+$('dl').addEventListener('click', () => {
+  const out = { updated: new Date().toISOString(), followers: buildList() };
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type:'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'followers.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+});
+</script>
+</body>
+</html>
