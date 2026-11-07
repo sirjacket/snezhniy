@@ -140,6 +140,14 @@ input[type=range]{width:100%;accent-color:var(--red);height:26px}
 .tg{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:13px;background:#fff;border:1px solid var(--line);font:800 14px/1.2 var(--f-ui)}
 .tg input{width:20px;height:20px;accent-color:var(--red)}
 .plist{display:grid;gap:6px}
+#places .card-body{grid-template-columns:minmax(0,1fr);max-height:calc(100dvh - var(--bot) - var(--dock-h) - 96px);overflow-y:auto;overscroll-behavior:contain}
+.mapbox{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#e9eef6;aspect-ratio:1/1;max-height:46dvh;margin:0 auto;width:100%;min-width:0}
+.mapbox canvas{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.mapzoom{position:absolute;right:8px;top:8px;display:grid;gap:6px}
+.mapzoom button{width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,.94);border:1px solid var(--line);font:800 20px/1 var(--f-ui);color:var(--ink);display:grid;place-items:center;box-shadow:0 2px 6px rgba(21,32,67,.12)}
+.mapzoom button svg{width:18px;height:18px}
+.maphint{margin:2px 2px 0;font:700 12.5px/1.35 var(--f-ui);color:var(--muted)}
+.maphint b{color:var(--red)}
 .prow{display:flex;align-items:center;gap:12px;min-height:50px;padding:6px 12px;border-radius:14px;background:#fff;border:1px solid var(--line);
   font:800 15px/1.2 var(--f-ui);color:var(--ink);text-align:left;width:100%}
 .prow i{font-style:normal;font-size:20px;width:26px;text-align:center;flex:none}
@@ -222,8 +230,8 @@ body.cinema .distpill,body.sheet-open .distpill{opacity:0}
   </section>
 
   <section class="card glass" id="places" hidden>
-    <div class="strip"><span>Места города</span><small>школы · вузы · ТЦ</small><button class="x" id="pClose" aria-label="Закрыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <div class="card-body"><div class="plist" id="pList"></div></div>
+    <div class="strip"><span>Карта города</span><small>районы · места</small><button class="x" id="pClose" aria-label="Закрыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="card-body"><div class="mapbox" id="mapBox"><canvas id="mapCv" aria-label="Карта города: нажми, чтобы полететь туда"></canvas><div class="mapzoom"><button type="button" id="mapIn" aria-label="Приблизить карту">+</button><button type="button" id="mapOut" aria-label="Отдалить карту">−</button><button type="button" id="mapMe" aria-label="Показать, где я"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button></div></div><p class="maphint">Нажми на карту — камера полетит туда. Двигай пальцем, щипком приближай. <b>●</b> — ты здесь.</p><div class="plist" id="pList"></div></div>
   </section>
 
   <section class="card glass" id="studio" hidden>
@@ -255,7 +263,7 @@ body.cinema .distpill,body.sheet-open .distpill{opacity:0}
     </label>
     <span class="sep"></span>
     <button class="dbtn" id="homeBtn" type="button" aria-label="К ёлке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 2.5l4.5 6.5h-2.6l3.6 5.5h-3.2l3.2 5H6.5l3.2-5H6.5L10.1 9H7.5z"/><path d="M12 19.5v2"/></svg></button>
-    <button class="dbtn" id="placesBtn" type="button" aria-label="Школы, университеты и торговые центры"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M3 20.5h18"/><path d="M4.5 20.5V10L12 5l7.5 5v10.5"/><path d="M12 5V2.5l3 1.2-3 1.2"/><path d="M10 20.5v-5h4v5"/><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01"/></svg></button>
+    <button class="dbtn" id="placesBtn" type="button" aria-label="Карта города: районы и места"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg></button>
     <button class="dbtn" id="cineBtn" type="button" aria-label="Прогулка по улицам"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2.5"/><path d="M16 11l5-3v8l-5-3z"/></svg></button>
     <button class="dbtn" id="studioBtn" type="button" aria-label="Съёмка и время"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></button>
   </form>
@@ -1549,19 +1557,19 @@ function addCane(A, px, y0, pz, sc, sideX){
 // у каждой вывески есть цветная доска (видна издалека), а надпись рисуется только на ближайших
 let shopSigns = [];
 function shopSign(H, S, along, rotY, signY, signZ, owner){
-  const pos = along(-0.6, signY, signZ + 0.14);
-  A_board(H, S, along(-0.6, signY - 1.2, signZ + 0.1));
+  const pos = along(-0.6, signY, signZ + 0.25);
+  A_board(H, S, along(-0.6, signY - 1.2, signZ + 0.17));
   if (!EMIT_LAZY) shopSigns.push({ h:H, S, owner, pos, rotY });
 }
 let A_boardList = null, EMIT_LAZY = false, DIRECT = null;
 const addDirect = (...o) => (DIRECT || city).add(...o);
 function A_board(H, S, p){ if (A_boardList) A_boardList.push({ p:[p.x, p.y, p.z], s:[6.0, 2.4, 0.06], c: parseInt(S.bg.slice(1), 16), o:H.idx }); }
-const SHOP_POOL = isCoarse ? 8 : 16;
+const SHOP_POOL = isCoarse ? 22 : 40, SHOP_DRAWS = isCoarse ? 3 : 6;
 const shopPool = [];
 for (let i = 0; i < SHOP_POOL; i++){
   const c = document.createElement('canvas'); c.width = 512; c.height = 205;
   const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
-  const mat = new THREE.MeshBasicMaterial({ map: tex });
+  const mat = new THREE.MeshBasicMaterial({ map: tex, alphaTest: 0.5 });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(6.0, 2.4), mat); mesh.visible = false;
   scene.add(mesh); shopPool.push({ c, tex, mat, mesh, sign:null });
 }
@@ -1575,16 +1583,26 @@ function drawShopSign(p, sg){
   p.tex.needsUpdate = true;
 }
 function resetShopSigns(){ shopPool.forEach(p => { p.sign = null; p.mesh.visible = false; }); }
+const signSphere = new THREE.Sphere(new THREE.Vector3(), 3.4);
 function updateShopSigns(){
-  const cp = camera.position, LIM = 120*120, near = [];
-  for (const sg of shopSigns){ const dx = sg.pos.x-cp.x, dy = sg.pos.y-cp.y, dz = sg.pos.z-cp.z, d2 = dx*dx+dy*dy+dz*dz; if (d2 < LIM) near.push([d2, sg]); }
+  const cp = camera.position, LIM = 190*190, near = [];
+  camera.updateMatrixWorld(); projM.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(projM);
+  for (const sg of shopSigns){
+    const dx = cp.x-sg.pos.x, dy = cp.y-sg.pos.y, dz = cp.z-sg.pos.z, d2 = dx*dx+dy*dy+dz*dz;
+    if (d2 > LIM) continue;
+    if (Math.sin(sg.rotY)*dx + Math.cos(sg.rotY)*dz < 0) continue;          // вывеска смотрит от камеры
+    signSphere.center.copy(sg.pos); if (!frustum.intersectsSphere(signSphere)) continue;
+    near.push([d2, sg]);
+  }
   near.sort((a, b) => a[0]-b[0]);
   const want = new Set(near.slice(0, SHOP_POOL).map(v => v[1])), free = [];
   for (const p of shopPool){ if (p.sign && want.has(p.sign)) want.delete(p.sign); else free.push(p); }
+  let draws = 0;
   for (const p of free){
-    const sg = want.values().next().value;
-    if (sg){ want.delete(sg); p.sign = sg; drawShopSign(p, sg); p.mesh.position.copy(sg.pos); p.mesh.rotation.set(0, sg.rotY, 0); p.mesh.visible = true; }
-    else { p.sign = null; p.mesh.visible = false; }
+    if (!want.size){ if (p.sign && !shopSigns.includes(p.sign)) { p.sign = null; p.mesh.visible = false; } continue; }
+    if (draws >= SHOP_DRAWS) break;
+    const sg = want.values().next().value; want.delete(sg); draws++;
+    p.sign = sg; drawShopSign(p, sg); p.mesh.position.copy(sg.pos); p.mesh.rotation.set(0, sg.rotY, 0); p.mesh.visible = true;
   }
 }
 function emitShop(H, A, gar, smk, addTree){
@@ -3155,25 +3173,42 @@ function startCinema(house){
   closeSheets(!!house);
   if (!house && !streetsTour.length) return;
   cine = { house, a: house ? Math.atan2(camera.position.x - house.x, camera.position.z - house.z) : 0, t:0 };
-  if (!house){ cine.tour = true; cine.i = -1; tourNext(); }
+  if (!house){ cine.tour = true; cine.seen = new Set(); cine.from = controls.target.clone(); tourNext(); }
   fly = null; controls.enabled = false; document.body.classList.add('cinema');
 }
-// прогулка: камера едет вдоль улицы от центра к окраине, потом перелетает на следующую
+// прогулка: начинаем с улицы, которая прямо там, куда смотрит камера, дальше — ближайшие соседние
 const TOUR_SPEED = 9;
-function tourPose(st, u){
-  const x0 = st.half*22, x1 = st.half*Math.min(st.maxX + 14, 260), x = x0 + (x1 - x0)*u;   // начинаем за площадью, чтобы ёлка не закрывала
-  return { p:new THREE.Vector3(x - st.half*4, 11, st.z + 7.5), l:new THREE.Vector3(x + st.half*28, 2.5, st.z - 2) };
+function streetSpan(st){ const lo = 22, hi = st.maxX + 14; return st.half > 0 ? [lo, hi] : [-hi, -lo]; }
+function tourPose(T, u){
+  const x = T.xs + (T.xe - T.xs)*u, dir = Math.sign(T.xe - T.xs) || 1, z = T.st.z;
+  return { p:new THREE.Vector3(x - dir*4, 11, z + 7.5), l:new THREE.Vector3(x + dir*28, 2.5, z - 2) };
 }
 function tourNext(){
-  const T = cine; T.i = (T.i + 1) % streetsTour.length;
-  const st = streetsTour[T.i], len = Math.min(st.maxX + 14, 260) - 22;
-  const from = { p:camera.position.clone(), l:camLook.clone() }, to = tourPose(st, 0);
-  T.st = st; T.dur = clamp(len/TOUR_SPEED, 7, 26); T.trans = { t:0, dur: T.i === 0 && !T.started ? 2.4 : 2.8, from, to }; T.started = true; T.u = 0;
+  const T = cine, from = T.from || camLook;
+  if (T.seen.size >= streetsTour.length) T.seen.clear();
+  // ближайшая непройденная улица к точке, где сейчас камера
+  let best = null, bd = Infinity;
+  for (const st of streetsTour){
+    if (T.seen.has(st)) continue;
+    const [a, b] = streetSpan(st), cx = clamp(from.x, a, b), d = Math.hypot(cx - from.x, (st.z - from.z)*1.15);
+    if (d < bd){ bd = d; best = st; }
+  }
+  const st = best; T.seen.add(st);
+  const [a, b] = streetSpan(st), x = clamp(from.x, a, b);
+  // едем в ту сторону, где улицы осталось больше
+  if (b - x >= x - a){ T.xs = x; T.xe = b; } else { T.xs = x; T.xe = a; }
+  if (Math.abs(T.xe - T.xs) < 40){ T.xs = T.xe === b ? a : b; }
+  if (Math.abs(T.xe - T.xs) > 230) T.xe = T.xs + Math.sign(T.xe - T.xs)*230;   // длинные улицы — кусками
+  const len = Math.abs(T.xe - T.xs);
+  T.st = st; T.dur = clamp(len/TOUR_SPEED, 6, 26); T.u = 0;
+  const to = tourPose(T, 0);
+  T.trans = { t:0, dur: T.started ? 2.6 : 2.2, from:{ p:camera.position.clone(), l:camLook.clone() }, to };
+  T.started = true; T.from = null;
   $('tourPill').classList.remove('on');
 }
 function showTourPill(st){
   $('tourName').textContent = st.name;
-  const D = districtAt(st.half*Math.min(st.maxX*0.6, 200), st.z);
+  const D = districtAt(cine && cine.xs !== undefined ? (cine.xs + cine.xe)/2 : st.half*60, st.z);
   $('tourSub').textContent = (D ? D.name + ' · ' : '') + fmtNum(st.n) + ' ' + plural(st.n, ['житель','жителя','жителей']) + (st.biz ? ' · ' + st.biz + ' ' + plural(st.biz, ['бизнес','бизнеса','бизнесов']) : '');
   $('tourPill').classList.add('on');
 }
@@ -3207,10 +3242,10 @@ function updateCamera(dt){
         camLook.lerpVectors(T.trans.from.l, T.trans.to.l, k);
         if (T.trans.t >= T.trans.dur){ T.trans = null; showTourPill(T.st); }
       } else {
-        T.u += dt/T.dur; const pz = tourPose(T.st, Math.min(T.u, 1));
+        T.u += dt/T.dur; const pz = tourPose(T, Math.min(T.u, 1));
         camera.position.copy(pz.p); camLook.copy(pz.l);
         if (T.u > 0.82) $('tourPill').classList.remove('on');
-        if (T.u >= 1) tourNext();
+        if (T.u >= 1){ T.from = camLook.clone(); tourNext(); }
       }
     }
     camera.lookAt(camLook); return;
@@ -3364,9 +3399,124 @@ function renderPlaces(){
   rows.push(grid);
   $('pList').replaceChildren(...rows);
 }
+
+/* ---------- карта города: вид сверху, тап — полёт туда ---------- */
+const DIST_COL = ['#f3b5a8','#a9d3c3','#b8c4ef','#f2d394','#d6b6e6','#9fd0e6','#f0b9cf','#c5dca0'];
+const MAP = { base:null, baseN:-1, B:100, zoom:1, cx:0, cz:0, ptrs:new Map(), moved:0, pinch:0 };
+function mapBase(){
+  if (MAP.base && MAP.baseN === houses.length) return MAP.base;
+  const N = isCoarse ? 1400 : 2048, c = MAP.base || document.createElement('canvas'); c.width = c.height = N;
+  const g = c.getContext('2d'), B = MAP.B = cityHalf + 14, k = N/(2*B);
+  g.fillStyle = '#e9eef6'; g.fillRect(0, 0, N, N);
+  const keys = [...districts.keys()].sort(), col = new Map(keys.map((key, i) => [key, key === 'c' ? '#f6d77e' : DIST_COL[i % DIST_COL.length]]));
+  // кварталы районов светлой подложкой, дома — точками цвета района
+  for (const D of districts.values()){
+    g.fillStyle = col.get(D.key); g.globalAlpha = 0.28;
+    for (const h of D.houses) g.fillRect((h.x + B)*k - 9*k, (h.z + B)*k - 9*k, 18*k, 18*k);
+  }
+  g.globalAlpha = 1;
+  for (const D of districts.values()){
+    const cc = col.get(D.key); g.fillStyle = cc;
+    for (const h of D.houses){ const w = Math.max(1.6, (h.w || 7)*k), d = Math.max(1.6, (h.d || 6)*k); g.fillRect((h.x + B)*k - w/2, (h.z + B)*k - d/2, w, d); }
+  }
+  // площадь, парк, мэрия
+  g.fillStyle = '#ffffff'; g.fillRect((-HALF_BLOCK + B)*k, (-HALF_BLOCK + B)*k, 2*HALF_BLOCK*k, 2*HALF_BLOCK*k);
+  MAP.col = col; MAP.base = c; MAP.baseN = houses.length; return c;
+}
+function mapSize(){ const cv = $('mapCv'), r = cv.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  const W = Math.round(r.width*dpr), H = Math.round(r.height*dpr); if (cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; } return { W, H, dpr }; }
+// мир → экран карты
+function mapXf(){ const { W, H, dpr } = mapSize(), sc = Math.min(W, H)/(2*MAP.B)*MAP.zoom; return { W, H, dpr, sc, ox: W/2 - MAP.cx*sc, oz: H/2 - MAP.cz*sc }; }
+function clampMap(){ const lim = MAP.B*(1 - 1/MAP.zoom); MAP.cx = clamp(MAP.cx, -lim, lim); MAP.cz = clamp(MAP.cz, -lim, lim); }
+function drawMap(){
+  if ($('places').hidden) return;
+  const cv = $('mapCv'), g = cv.getContext('2d'), base = mapBase(), T = mapXf(), { W, H, sc, ox, oz, dpr } = T, B = MAP.B;
+  g.setTransform(1,0,0,1,0,0); g.fillStyle = '#e9eef6'; g.fillRect(0, 0, W, H);
+  g.imageSmoothingEnabled = true; g.drawImage(base, ox - B*sc, oz - B*sc, 2*B*sc, 2*B*sc);
+  const X = x => ox + x*sc, Z = z => oz + z*sc;
+  // места
+  const icon = (e, x, z, size) => { g.font = `${size*dpr}px system-ui, "Apple Color Emoji", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, X(x), Z(z)); };
+  const isz = clamp(6 + MAP.zoom*3.2, 9, 22);
+  icon('🎄', 0, 0, isz + 3); icon('🏛️', -P, 0, isz);
+  if (total >= 25) icon('⛸️', P, 0, isz);
+  if (total >= 100) icon('🎡', 0, P, isz);
+  const EM = { school:'🏫', hospital:'🏥', university:'🎓', mall:'🛍️' };
+  for (const L of landmarks) if ((L.open && MAP.zoom > 1.4) || MAP.zoom > 2.4) icon(L.open ? EM[L.kind] || '📍' : '🏗️', L.bx*P, L.bz*P, isz);
+  // названия районов: крупные первыми, без наложений
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  const fs = clamp(10 + MAP.zoom*1.6, 10.5, 17)*dpr, boxes = [];
+  g.font = `800 ${fs}px Manrope, system-ui, sans-serif`;
+  for (const D of [...districts.values()].sort((a, b) => b.houses.length - a.houses.length)){
+    if (D.key === 'c') continue;
+    const x = X(D.cx), y = Z(D.cz) + fs*0.9; if (x < -60 || y < -20 || x > W + 60 || y > H + 20) continue;
+    const w = g.measureText(D.name).width + 8*dpr, bx = { l:x - w/2, r:x + w/2, t:y - fs*0.7, b:y + fs*0.7 };
+    if (boxes.some(o => o.l < bx.r && bx.l < o.r && o.t < bx.b && bx.t < o.b)) continue;
+    boxes.push(bx);
+    g.lineWidth = 4*dpr; g.strokeStyle = 'rgba(255,255,255,.95)'; g.strokeText(D.name, x, y);
+    g.fillStyle = '#152043'; g.fillText(D.name, x, y);
+  }
+  // выбранный дом
+  if (selected){ g.fillStyle = '#d8352f'; g.beginPath(); g.arc(X(selected.x), Z(selected.z), 4.5*dpr, 0, 7); g.fill(); }
+  // ты здесь: точка и конус взгляда
+  const t = cine ? camLook : controls.target, vx = t.x - camera.position.x, vz = t.z - camera.position.z, a = Math.atan2(vz, vx);
+  g.save(); g.translate(X(t.x), Z(t.z));
+  g.fillStyle = 'rgba(216,53,47,.18)'; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, 34*dpr, a - 0.5, a + 0.5); g.closePath(); g.fill();
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(0, 0, 8*dpr, 0, 7); g.fill();
+  g.fillStyle = '#d8352f'; g.beginPath(); g.arc(0, 0, 5.5*dpr, 0, 7); g.fill();
+  g.restore();
+}
+function mapWorld(clientX, clientY){
+  const r = $('mapCv').getBoundingClientRect(), T = mapXf();
+  return { x: ((clientX - r.left)*T.dpr - T.ox)/T.sc, z: ((clientY - r.top)*T.dpr - T.oz)/T.sc };
+}
+function mapZoom(f, cx, cy){
+  const before = cx !== undefined ? mapWorld(cx, cy) : null;
+  MAP.zoom = clamp(MAP.zoom*f, 1, 9);
+  if (before){ const after = mapWorld(cx, cy); MAP.cx += before.x - after.x; MAP.cz += before.z - after.z; }
+  clampMap(); drawMap();
+}
+function flyToPoint(x, z){
+  x = clamp(x, -cityHalf, cityHalf); z = clamp(z, -cityHalf, cityHalf);
+  const off = camera.position.clone().sub(controls.target); off.y = 0; if (off.lengthSq() < 1) off.set(0.5, 0, 1); off.normalize();
+  const tg = new THREE.Vector3(x, 0, z), D = districtAt(x, z);
+  closeSheets(true); flyTo(tg.clone().add(off.multiplyScalar(78)).setY(62), tg, 1.9);
+  if (D) lastDistrict = null;
+}
+{
+  const cv = $('mapCv');
+  cv.addEventListener('pointerdown', e => { try { cv.setPointerCapture(e.pointerId); } catch {} MAP.ptrs.set(e.pointerId, { x:e.clientX, y:e.clientY }); if (MAP.ptrs.size === 1) MAP.moved = 0; MAP.pinch = 0; });
+  cv.addEventListener('pointermove', e => {
+    const pt = MAP.ptrs.get(e.pointerId); if (!pt) return;
+    if (MAP.ptrs.size === 2){
+      const [a, b] = [...MAP.ptrs.values()], d0 = Math.hypot(a.x - b.x, a.y - b.y);
+      pt.x = e.clientX; pt.y = e.clientY;
+      const d1 = Math.hypot(a.x - b.x, a.y - b.y);
+      if (d0 > 0) mapZoom(d1/d0, (a.x + b.x)/2, (a.y + b.y)/2); MAP.moved = 99; return;
+    }
+    const T = mapXf(), dx = e.clientX - pt.x, dy = e.clientY - pt.y; pt.x = e.clientX; pt.y = e.clientY;
+    MAP.moved += Math.abs(dx) + Math.abs(dy);
+    MAP.cx -= dx*T.dpr/T.sc; MAP.cz -= dy*T.dpr/T.sc; clampMap(); drawMap();
+  });
+  const up = e => {
+    const had = MAP.ptrs.has(e.pointerId); MAP.ptrs.delete(e.pointerId);
+    if (had && e.type === 'pointerup' && !MAP.ptrs.size && MAP.moved < 8){ const w = mapWorld(e.clientX, e.clientY); flyToPoint(w.x, w.z); }
+  };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { e.preventDefault(); mapZoom(e.deltaY < 0 ? 1.2 : 1/1.2, e.clientX, e.clientY); }, { passive:false });
+  $('mapIn').addEventListener('click', () => mapZoom(1.5));
+  $('mapOut').addEventListener('click', () => mapZoom(1/1.5));
+  $('mapMe').addEventListener('click', () => { const t = controls.target; MAP.zoom = Math.max(MAP.zoom, 3); MAP.cx = t.x; MAP.cz = t.z; clampMap(); drawMap(); });
+  addEventListener('resize', () => drawMap());
+}
+function openMapAtCamera(){
+  mapBase(); const t = controls.target;
+  if (MAP.zoom === 1 && cityHalf > 300){ MAP.zoom = 2; }
+  MAP.cx = t.x; MAP.cz = t.z; clampMap();
+  requestAnimationFrame(drawMap);
+}
 $('placesBtn').addEventListener('click', () => {
   const open = $('places').hidden; closeSheets(true);
-  if (open){ renderPlaces(); $('places').hidden = false; $('placesBtn').classList.add('on'); document.body.classList.add('sheet-open'); }
+  if (open){ renderPlaces(); $('places').hidden = false; $('placesBtn').classList.add('on'); document.body.classList.add('sheet-open'); openMapAtCamera(); }
 });
 $('pClose').addEventListener('click', () => closeSheets(true));
 $('exitCine').addEventListener('click', stopCinema);
@@ -3557,7 +3707,8 @@ function loop(now){
   if (selRing && selRing.visible){ const k = 1 + Math.sin(clockT*3)*0.06; selRing.scale.x = selRing.scale.z = (Math.max(selected.w, selected.d)/9 + 0.6)*k; }
   if (frameN % 4 === 0) updateChunks();
   if (frameN % 6 === 0) pickLabels();
-  if (frameN % 15 === 0){ updateSigns(); updateShopSigns(); checkDistrict(); }
+  if (frameN % 15 === 0){ updateSigns(); checkDistrict(); }
+  if (frameN % 4 === 2) updateShopSigns();
   updateLabels();
   renderFrame();
   requestAnimationFrame(loop);
