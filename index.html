@@ -369,7 +369,8 @@ function houseNumber(lot){
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, powerPreference:'high-performance' });
 let hq = store.get('city.hq') === '1';
-const dprFor = () => Math.min(window.devicePixelRatio || 1, hq ? 3 : (isCoarse ? 1.6 : 2));
+let dprCut = 1;   // автоматически уменьшается, если телефон не успевает
+const dprFor = () => Math.min(window.devicePixelRatio || 1, hq ? 3 : (isCoarse ? 1.4 : 2)) * (hq ? 1 : dprCut);
 renderer.setPixelRatio(dprFor());
 renderer.setSize(innerWidth, innerHeight, false);
 renderer.shadowMap.enabled = true;
@@ -580,20 +581,20 @@ const GEO = {
   tree: treeGeo(),
   bank: new THREE.CylinderGeometry(1,1,1,10,1).rotateZ(Math.PI/2),
   pole: new THREE.CylinderGeometry(0.11,0.15,1,6).translate(0,0.5,0),
-  bulb: new THREE.SphereGeometry(1, 10, 8),
+  bulb: new THREE.SphereGeometry(1, isCoarse ? 6 : 10, isCoarse ? 5 : 8),   // на телефонах мелочь попроще
   flat: new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2),
   col: new THREE.CylinderGeometry(0.2,0.25,1,10).translate(0,0.5,0),
-  ucyl: new THREE.CylinderGeometry(1,1,1,16).translate(0,0.5,0),
-  ucone: new THREE.ConeGeometry(1,1,18).translate(0,0.5,0),
-  torus: new THREE.TorusGeometry(1,0.34,10,22),
-  htorus: new THREE.TorusGeometry(1,0.42,8,14,Math.PI),
-  usph: new THREE.SphereGeometry(1,16,12),
-  ufrus: new THREE.CylinderGeometry(0.78,1,1,16).translate(0,0.5,0),
+  ucyl: new THREE.CylinderGeometry(1,1,1,isCoarse ? 10 : 16).translate(0,0.5,0),
+  ucone: new THREE.ConeGeometry(1,1,isCoarse ? 10 : 18).translate(0,0.5,0),
+  torus: new THREE.TorusGeometry(1,0.34,isCoarse ? 6 : 10,isCoarse ? 12 : 22),
+  htorus: new THREE.TorusGeometry(1,0.42,isCoarse ? 6 : 8,isCoarse ? 8 : 14,Math.PI),
+  usph: new THREE.SphereGeometry(1,isCoarse ? 10 : 16,isCoarse ? 7 : 12),
+  ufrus: new THREE.CylinderGeometry(0.78,1,1,isCoarse ? 10 : 16).translate(0,0.5,0),
   awnA: THREE.BufferGeometryUtils.mergeBufferGeometries([0, 2, 4, 6].map(i => new THREE.BoxGeometry(0.125, 1, 1).translate(-0.4375 + i*0.125, 0, 0))),
   awnB: THREE.BufferGeometryUtils.mergeBufferGeometries([1, 3, 5, 7].map(i => new THREE.BoxGeometry(0.125, 1, 1).translate(-0.4375 + i*0.125, 0, 0))),
   treeLo: THREE.BufferGeometryUtils.mergeBufferGeometries([
-    colored(new THREE.ConeGeometry(1.55,3.6,6).translate(0,2.4,0), 0x2f5d4a),
-    colored(new THREE.ConeGeometry(0.8,1.3,6).translate(0,3.65,0), 0xf1f5fc),
+    colored(new THREE.ConeGeometry(1.55,3.6,6,1,true).translate(0,2.4,0), 0x2f5d4a),
+    colored(new THREE.ConeGeometry(0.8,1.3,6,1,true).translate(0,3.65,0), 0xf1f5fc),
   ]),
 };
 for (const g of Object.values(GEO)) if (!g.boundingBox) g.computeBoundingBox();
@@ -772,7 +773,11 @@ function pointsFrom(arr, mat, attrs, parent = city){
 }
 
 /* ---------- участки: дальние рисуются крупно, ближние — со всеми деталями ---------- */
-const NEAR_D = isCoarse ? 95 : 135, MID_D = isCoarse ? 220 : 290, GLOW_D = isCoarse ? 420 : 680;
+const NEAR_D = isCoarse ? 95 : 135, MID_D = isCoarse ? 220 : 290, GLOW_D = isCoarse ? 340 : 520;
+// дальше ULTRA_D дома рисуются упрощёнными коробками; дальше FOG_END всё равно сплошная дымка
+const ULTRA_D = isCoarse ? 380 : 650;
+const TREE_D = isCoarse ? 130 : 290;   // ближе — подробные ёлки, дальше — простые
+let FOG_END = 1500;
 const DETAIL_CHUNK = 5*P, FAR_CHUNK = 10*P;
 let chunkList = [], chunkMap = new Map(), pickMeshes = [];
 function chunkGroup(tier, size, x, z){
@@ -785,7 +790,7 @@ function chunkGroup(tier, size, x, z){
   return c.group;
 }
 // крупные участки — для того, что видно издалека; мелкие — для деталей рядом
-const BIG_TIERS = new Set(['far', 'glow', 'tree', 'lo']);
+const BIG_TIERS = new Set(['far', 'hfar', 'ultra', 'glow', 'tree', 'lo']);
 function chunked(geo, mat, items, opts, tier){
   const size = BIG_TIERS.has(tier) ? FAR_CHUNK : DETAIL_CHUNK, by = new Map();
   for (const it of items){ const g = chunkGroup(tier, size, it.p[0], it.p[2]); let l = by.get(g); if (!l) by.set(g, l = []); l.push(it); }
@@ -806,9 +811,115 @@ const bigSplit = (items, vol = 3.5) => { const big = [], small = []; for (const 
 function updateChunks(){
   const cp = camera.position;
   for (const c of chunkList){
-    if (c.tier === 'far') continue;
     const d = cp.distanceTo(c.center) - c.radius;
-    c.group.visible = c.tier === 'near' ? d < NEAR_D : (c.tier === 'mid' || c.tier === 'tree') ? d < MID_D : c.tier === 'glow' ? d < GLOW_D : d >= MID_D;
+    if (d > FOG_END){ c.group.visible = false; continue; }
+    c.group.visible = c.tier === 'far' ? true : c.tier === 'near' ? d < NEAR_D : c.tier === 'mid' ? d < MID_D : c.tier === 'tree' ? d < TREE_D : c.tier === 'glow' ? d < GLOW_D
+      : c.tier === 'hfar' ? d < ULTRA_D : c.tier === 'ultra' ? d >= ULTRA_D : d >= TREE_D;
+  }
+  updateDetail();
+}
+
+/* ---------- детали домов строятся только рядом с камерой ----------
+   Окна, двери, гирлянды, фонари, сугробы и мелочь собираются по участкам, когда камера подлетает,
+   и выбрасываются, когда улетает. Так 20+ тысяч домов не держат в памяти миллион мелких деталей. */
+let detailCells = new Map(), detailBuilt = [];
+const DETAIL_IN = GLOW_D + 20, DETAIL_OUT = GLOW_D + 160;
+const frustum = new THREE.Frustum(), projM = new THREE.Matrix4(), cellSphere = new THREE.Sphere();
+function cellOf(x, z){
+  const cx = Math.floor(x/DETAIL_CHUNK), cz = Math.floor(z/DETAIL_CHUNK), key = cx + ',' + cz;
+  let c = detailCells.get(key);
+  if (!c){ c = { key, center:new THREE.Vector3((cx+0.5)*DETAIL_CHUNK, 0, (cz+0.5)*DETAIL_CHUNK), radius:DETAIL_CHUNK*0.72 + 12, houses:[], blocks:[], g:null }; detailCells.set(key, c); }
+  return c;
+}
+function newA(){ return { body:[], roof:[], snow:[], cap:[], door:[], chim:[], win:[], tree:[], bank:[], pole:[], bulb:[], pool:[], path:[],
+  cyl:[], cone:[], torus:[], htorus:[], colm:[], gold:[], awn:{}, sph:[], frus:[], board:[] }; }
+// сугробы и фонари одного квартала
+function blockDecor(b, A, addLamp){
+  const { bx, bz, sp } = b, cx = bx*P, cz = bz*P;
+  const gapsX = sp ? [0] : [-10,0,10];
+  for (const s of [1,-1]){
+    segs(-HALF_BLOCK+0.6, HALF_BLOCK-0.6, gapsX, 1.5).forEach(([a,c]) => A.bank.push({ p:[cx+(a+c)/2, 0, cz+s*(HALF_BLOCK+0.3)], s:[c-a, 0.5, 0.85] }));
+    segs(-HALF_BLOCK+0.6, HALF_BLOCK-0.6, sp ? [0] : [], 1.5).forEach(([a,c]) => A.bank.push({ p:[cx+s*(HALF_BLOCK+0.3), 0, cz+(a+c)/2], s:[c-a, 0.5, 0.85], q:Q90 }));
+  }
+  if (!sp) for (const s of [1,-1]) for (const ox of [-5,5]) addLamp(cx+ox, cz+s*(HALF_BLOCK+0.4));
+}
+// мелкие instanced-меши участка: без «видов» геометрии, отсечение делаем сами по участку
+function cellMesh(geo, mat, items, opts, parent, c){
+  if (!items.length) return;
+  const m = new THREE.InstancedMesh(geo, mat, items.length);
+  items.forEach((it, i) => {
+    tmpP.set(it.p[0], it.p[1], it.p[2]); tmpS.set(it.s[0], it.s[1], it.s[2]);
+    tmpM.compose(tmpP, it.q || Q0, tmpS); m.setMatrixAt(i, tmpM);
+    if (it.c !== undefined){ if (Array.isArray(it.c)) tmpC.setRGB(it.c[0],it.c[1],it.c[2]); else tmpC.set(it.c); m.setColorAt(i, tmpC); }
+  });
+  m.frustumCulled = false; m.receiveShadow = !!opts.receive;
+  if (opts.pick){ m.userData.owners = items.map(i => i.o); m.userData.sphere = new THREE.Sphere(c.center, c.radius + 20); pickMeshes.push(m); }
+  parent.add(m);
+}
+const noTree = () => {};
+function buildDetail(c){
+  const A = newA(), gar = { pos:[], aColor:[], aPhase:[], aSize:[] }, smk = { pos:[], aPhase:[] };
+  const addLamp = (x,z,h=4.6) => { A.pole.push({ p:[x,0,z], s:[1,h,1] }); A.bulb.push({ p:[x,h+0.15,z], s:[0.34,0.34,0.34] }); A.pool.push({ p:[x,0.07,z], s:[12,1,12] }); };
+  for (const b of c.blocks) blockDecor(b, A, addLamp);
+  EMIT_LAZY = true; A_boardList = A.board;
+  try { for (const h of c.houses) emitHouse(h, A, gar, smk, noTree); }
+  finally { EMIT_LAZY = false; A_boardList = null; }
+  const g = { near:new THREE.Group(), mid:new THREE.Group(), glow:new THREE.Group() };
+  const [, bodyNear] = bigSplit(A.body), [, capMid] = bigSplit(A.cap);
+  cellMesh(GEO.box, MAT.body, bodyNear, { receive:true, pick:true }, g.near, c);
+  cellMesh(GEO.box, MAT.snow, capMid, {}, g.mid, c);
+  cellMesh(GEO.cbox, MAT.door, A.door, {}, g.mid, c);
+  cellMesh(GEO.box, MAT.chim, A.chim, {}, g.mid, c);
+  cellMesh(GEO.cbox, windowMat, A.win, {}, g.glow, c);
+  cellMesh(GEO.bank, MAT.bank, A.bank, { receive:true }, g.mid, c);
+  cellMesh(GEO.pole, MAT.pole, A.pole, {}, g.mid, c);
+  cellMesh(GEO.bulb, MAT.bulb, A.bulb, {}, g.mid, c);
+  cellMesh(GEO.flat, MAT.pool, A.pool, {}, g.mid, c);
+  cellMesh(GEO.flat, MAT.path, A.path, { receive:true }, g.mid, c);
+  cellMesh(GEO.col, MAT.white, A.colm, {}, g.mid, c);
+  cellMesh(GEO.box, MAT.body, A.board, {}, g.mid, c);
+  for (const [k, geo] of [['cyl', GEO.ucyl], ['cone', GEO.ucone], ['sph', GEO.usph], ['frus', GEO.ufrus]]) cellMesh(geo, MAT.body, bigSplit(A[k], 6)[1], {}, g.near, c);
+  cellMesh(GEO.torus, MAT.body, A.torus, {}, g.near, c);
+  cellMesh(GEO.htorus, MAT.body, A.htorus, {}, g.near, c);
+  cellMesh(GEO.bulb, MAT.star, A.gold, {}, g.near, c);
+  const awnA = [], awnB = [];
+  for (const k in A.awn){ const [a, b] = k.split('|').map(x => parseInt(x.slice(1), 16)); for (const it of A.awn[k]){ awnA.push({ ...it, c:a }); awnB.push({ ...it, c:b }); } }
+  cellMesh(GEO.awnA, MAT.body, awnA, {}, g.near, c);
+  cellMesh(GEO.awnB, MAT.body, awnB, {}, g.near, c);
+  pointsFrom(gar, garlandMat, [['aColor',3],['aPhase',1],['aSize',1]], g.glow);
+  pointsFrom(smk, smokeMat, [['aPhase',1]], g.near);
+  for (const k in g) city.add(g[k]);
+  c.g = g; detailBuilt.push(c);
+}
+function dropDetail(c){
+  for (const k in c.g){
+    const grp = c.g[k]; city.remove(grp);
+    grp.traverse(n => {
+      if (n.isInstancedMesh){ const i = pickMeshes.indexOf(n); if (i >= 0) pickMeshes.splice(i, 1); n.dispose(); }
+      else if (n.isPoints) n.geometry.dispose();
+    });
+  }
+  c.g = null; detailBuilt.splice(detailBuilt.indexOf(c), 1);
+}
+function updateDetail(all){
+  const cp = camera.position;
+  projM.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(projM);
+  // выбросить далёкие
+  for (const c of detailBuilt.slice()) if (cp.distanceTo(c.center) - c.radius > DETAIL_OUT) dropDetail(c);
+  // построить ближайшие: по одному-два участка за кадр, чтобы не было рывков
+  const want = [];
+  for (const c of detailCells.values()){
+    if (c.g) continue; const d = cp.distanceTo(c.center) - c.radius;
+    if (d < (all ? MID_D : DETAIL_IN)) want.push([d, c]);
+  }
+  want.sort((a, b) => a[0] - b[0]);
+  const t0 = performance.now();
+  for (const [, c] of want){ buildDetail(c); if (!all && performance.now() - t0 > (isCoarse ? 6 : 10)) break; }
+  // видимость деталей: по расстоянию и в кадре ли участок
+  for (const c of detailBuilt){
+    const d = cp.distanceTo(c.center) - c.radius;
+    cellSphere.set(c.center, c.radius + 25); const inView = frustum.intersectsSphere(cellSphere);
+    c.g.near.visible = inView && d < NEAR_D; c.g.mid.visible = inView && d < MID_D; c.g.glow.visible = inView && d < GLOW_D;
   }
 }
 
@@ -816,7 +927,7 @@ function buildCity(list){
   // очистка
   for (const o of [...city.children]){ city.remove(o); o.traverse(n => { if (n.geometry && !n.geometry.userData.view && !Object.values(GEO).includes(n.geometry)) n.geometry.dispose(); if (n.isInstancedMesh) n.dispose?.(); }); }
   dayLitMats.length = 0; glowMats.length = 0; spinners.length = 0;
-  chunkList = []; chunkMap = new Map(); pickMeshes = []; shopSigns = [];
+  chunkList = []; chunkMap = new Map(); pickMeshes = []; shopSigns = []; detailCells = new Map(); detailBuilt = [];
   houses = []; neighborMap = new Map();
   const active = list.filter(f => !f.left);
   total = active.length;
@@ -862,14 +973,9 @@ function buildCity(list){
   }
   for (const [bx,bz] of allBlocks){
     const cx = bx*P, cz = bz*P, key = bx+','+bz, sp = SPECIAL[key] || (lmKeys.has(key) ? 'lm' : null);
-    // сугробы по краям квартала (с проходами к домам)
-    const gapsX = sp ? [0] : [-10,0,10];
-    for (const s of [1,-1]){
-      segs(-HALF_BLOCK+0.6, HALF_BLOCK-0.6, gapsX, 1.5).forEach(([a,b]) => A.bank.push({ p:[cx+(a+b)/2, 0, cz+s*(HALF_BLOCK+0.3)], s:[b-a, 0.5, 0.85] }));
-      segs(-HALF_BLOCK+0.6, HALF_BLOCK-0.6, sp ? [0] : [], 1.5).forEach(([a,b]) => A.bank.push({ p:[cx+s*(HALF_BLOCK+0.3), 0, cz+(a+b)/2], s:[b-a, 0.5, 0.85], q:Q90 }));
-    }
+    // сугробы и фонари — в деталях участка (строятся, когда камера рядом)
+    cellOf(cx, cz).blocks.push({ bx, bz, sp });
     if (!sp){
-      for (const s of [1,-1]) for (const ox of [-5,5]) addLamp(cx+ox, cz+s*(HALF_BLOCK+0.4));
       for (const lot of lotsOfBlock(bx,bz)){
         if (lotsTaken.has(`${lot.x},${lot.z}`)) continue;
         const k = 1 + Math.floor(gr()*2.4);
@@ -878,9 +984,26 @@ function buildCity(list){
     }
   }
   // ---- дома ----
-  A_boardList = A.board;
-  for (const h of houses) emitHouse(h, A, gar, smk, addTree);
-  A_boardList = null;
+  // общая сборка оставляет только крупные части (видны издалека) и упрощённые коробки для дальних планов;
+  // мелкие детали каждого участка соберутся, когда камера подлетит
+  const HF = { body:[], roof:[], snow:[], cyl:[], cone:[], sph:[], frus:[] }, proxyB = [], proxyR = [];
+  const SA = newA(), sgar = { pos:[], aColor:[], aPhase:[], aSize:[] }, ssmk = { pos:[], aPhase:[] };
+  for (const h of houses){
+    for (const k in SA) if (Array.isArray(SA[k])) SA[k].length = 0; SA.awn = {};
+    sgar.pos.length = 0; ssmk.pos.length = 0;
+    emitHouse(h, SA, sgar, ssmk, addTree);
+    const [bf] = bigSplit(SA.body), [cf] = bigSplit(SA.cap);
+    for (const it of bf) HF.body.push(it);
+    for (const it of cf) HF.body.push({ p:it.p, s:it.s, c:0xeef3fb, o:h.idx });
+    for (const it of SA.roof) HF.roof.push(it);
+    for (const it of SA.snow) HF.snow.push(it);
+    for (const k of ['cyl','cone','sph','frus']) for (const it of bigSplit(SA[k], 6)[0]) HF[k].push(it);
+    cellOf(h.x, h.z).houses.push(h);
+    // упрощённый дом для дальних планов: коробка и заснеженная крыша
+    const hh = Math.max(3, Math.min(h.h || 3.6, 9)), hw = h.w || 7, hd = h.d || 6;
+    proxyB.push({ p:[h.x, 0, h.z], s:[hw, hh, hd], c:h.body, o:h.idx });
+    proxyR.push({ p:[h.x, hh, h.z], s:[hw + 0.6, Math.min(h.rh || 2.4, 3.2), hd + 0.6], o:h.idx });
+  }
   // ---- соседи ----
   for (const h of houses) neighborMap.set(`${h.lot.road}|${h.lot.side}|${h.lot.xi}`, h);
 
@@ -927,6 +1050,13 @@ function buildCity(list){
   chunked(GEO.box, MAT.body, bodyNear, { receive:true, pick:true }, 'near');
   chunked(GEO.prism, MAT.roof, A.roof, { cast:true, pick:true }, 'far');
   chunked(GEO.prism, MAT.snow, A.snow, { cast:true, receive:true, pick:true }, 'far');
+  // дома: крупные части рядом, коробки вдали
+  chunked(GEO.box, MAT.body, HF.body, { cast:true, receive:true, pick:true }, 'hfar');
+  chunked(GEO.prism, MAT.roof, HF.roof, { cast:true, pick:true }, 'hfar');
+  chunked(GEO.prism, MAT.snow, HF.snow, { cast:true, receive:true, pick:true }, 'hfar');
+  for (const [k, geo] of [['cyl', GEO.ucyl], ['cone', GEO.ucone], ['sph', GEO.usph], ['frus', GEO.ufrus]]) chunked(geo, MAT.body, HF[k], { cast:true }, 'hfar');
+  chunked(GEO.box, MAT.body, proxyB, { pick:true }, 'ultra');
+  chunked(GEO.prism, MAT.snow, proxyR, { pick:true }, 'ultra');
   chunked(GEO.box, MAT.snow, capMid, {}, 'mid');
   chunked(GEO.cbox, MAT.door, A.door, {}, 'mid');
   chunked(GEO.box, MAT.chim, A.chim, {}, 'mid');
@@ -961,10 +1091,11 @@ function buildCity(list){
 
   // туман и горы под размер города: большой город уходит в дымку, а не рисуется до горизонта
   scene.fog.density = 1.5 / (Math.min(cityHalf, 420) + 260);
+  FOG_END = 2.3 / scene.fog.density;
   buildMountains(cityHalf*Math.SQRT2 + 40);   // город квадратный: горы ставим дальше его углов
   camera.far = Math.max(4000, cityHalf*5); camera.updateProjectionMatrix();
   controls.maxDistance = Math.min(120 + R*45, 560);
-  resetSigns(); resetShopSigns(); updateChunks();
+  resetSigns(); resetShopSigns(); camera.updateMatrixWorld(); updateChunks(); updateDetail(true);
 }
 function segs(a, b, gaps, hw){
   const out = []; let s = a;
@@ -1207,6 +1338,13 @@ function emitDoner(H, A, gar, smk, addTree){
   A.win.push({ p:[dp.x, 1.55, front + f*0.12], s:[0.7, 0.8, 0.06], c:[-0.5, 0.6, 0] });
   A.bulb.push({ p:[dp.x, 2.65, front + f*0.3], s:[0.16,0.16,0.16] });
   // полосатый козырёк
+  const signZ = d/2 - 0.7, signY = h + 0.65 + 1.25;
+  if (!H.left){
+    const bz = z + f*(signZ + 0.3);
+    lampLights(gar, x - 3.6, x + 2.4, signY + 1.38, bz, 0, LIGHTS_MULTI, H.n);
+    lampLights(gar, x - 3.6, x + 2.4, signY - 1.38, bz, 0, LIGHTS_MULTI, H.n + 1);
+  }
+  if (!EMIT_LAZY){
   if (!stripeTex){
     const c = document.createElement('canvas'); c.width = 128; c.height = 16; const g = c.getContext('2d');
     for (let i=0;i<8;i++){ g.fillStyle = i%2 ? '#fff4e6' : '#d8352f'; g.fillRect(i*16,0,16,16); }
@@ -1224,15 +1362,9 @@ function emitDoner(H, A, gar, smk, addTree){
     g.fillStyle = '#ffd36a'; fitText(g, owner, W-90, 46, 800, 'Manrope, Arial, sans-serif'); g.fillText(owner, W/2, 196);
   });
   const signMat = new THREE.MeshBasicMaterial({ map: tex }); glowMats.push(signMat);
-  const signZ = d/2 - 0.7, signY = h + 0.65 + 1.25;
   const board = new THREE.Mesh(new THREE.PlaneGeometry(6.0, 2.4), signMat); board.position.copy(along(-0.6, signY, signZ + 0.14)); board.rotation.y = rotY; city.add(board);
   const back = new THREE.Mesh(GEO.cbox, MAT.dark); back.scale.set(6.2, 2.6, 0.24); back.position.copy(along(-0.6, signY, signZ)); back.rotation.y = rotY; back.castShadow = true; city.add(back);
   for (const lx of [-2.8, 1.6]){ const leg = new THREE.Mesh(GEO.box, MAT.dark); leg.scale.set(0.2, 0.7, 0.2); leg.position.copy(along(lx, h + 0.65, signZ - 0.1)); city.add(leg); }
-  if (!H.left){
-    const bz = z + f*(signZ + 0.3);
-    lampLights(gar, x - 3.6, x + 2.4, signY + 1.38, bz, 0, LIGHTS_MULTI, H.n);
-    lampLights(gar, x - 3.6, x + 2.4, signY - 1.38, bz, 0, LIGHTS_MULTI, H.n + 1);
-  }
   // крутящийся вертел
   const spit = new THREE.Group();
   const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 3.2, 6), MAT.pole); rod.position.y = 1.6;
@@ -1242,6 +1374,7 @@ function emitDoner(H, A, gar, smk, addTree){
   const top = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.12, 12), MAT.pole); top.position.y = 2.8;
   spit.add(rod, meat, crust, crust2, top); spit.position.copy(along(3.2, h + 0.65, -0.6)); city.add(spit); spinners.push(spit);
   const heater = new THREE.Mesh(GEO.cbox, new THREE.MeshBasicMaterial({ color:0xff5a1f })); heater.scale.set(0.12, 2.0, 1.2); heater.position.copy(along(4.15, h + 0.65 + 1.55, -0.6)); city.add(heater);
+  }
   // вытяжка с паром
   const vp = along(-3.0, 0, -d*0.25);
   A.chim.push({ p:[vp.x, h+0.35, vp.z], s:[0.6,1.2,0.6] });
@@ -1266,9 +1399,9 @@ let shopSigns = [];
 function shopSign(H, S, along, rotY, signY, signZ, owner){
   const pos = along(-0.6, signY, signZ + 0.14);
   A_board(H, S, along(-0.6, signY - 1.2, signZ + 0.1));
-  shopSigns.push({ h:H, S, owner, pos, rotY });
+  if (!EMIT_LAZY) shopSigns.push({ h:H, S, owner, pos, rotY });
 }
-let A_boardList = null;
+let A_boardList = null, EMIT_LAZY = false;
 function A_board(H, S, p){ if (A_boardList) A_boardList.push({ p:[p.x, p.y, p.z], s:[6.0, 2.4, 0.06], c: parseInt(S.bg.slice(1), 16), o:H.idx }); }
 const SHOP_POOL = isCoarse ? 8 : 16;
 const shopPool = [];
@@ -2633,7 +2766,7 @@ canvas.addEventListener('pointerup', e => {
   if (!down) return; const moved = Math.hypot(e.clientX-down.x, e.clientY-down.y), dt = performance.now()-down.t; down = null;
   if (moved > 7 || dt > 450 || fly) return;
   ndc.set(e.clientX/innerWidth*2-1, -(e.clientY/innerHeight)*2+1); ray.setFromCamera(ndc, camera);
-  const cand = pickMeshes.filter(m => m.parent.visible && ray.ray.intersectsSphere(m.geometry.boundingSphere));
+  const cand = pickMeshes.filter(m => m.parent.visible && ray.ray.intersectsSphere(m.userData.sphere || m.geometry.boundingSphere));
   const hits = ray.intersectObjects(cand, false);
   const hit = hits.find(h => h.instanceId !== undefined && h.object.userData.owners?.[h.instanceId] !== undefined);
   const ow = hit ? hit.object.userData.owners[hit.instanceId] : null;
@@ -2858,8 +2991,22 @@ addEventListener('resize', onResize);
 function renderFrame(){ if (composer) composer.render(); else renderer.render(scene, camera); }
 
 let last = performance.now(), clockT = 0, frameN = 0;
+// если устройство не успевает (меньше ~26 кадров в секунду), по шагам снижаем нагрузку:
+// сначала свечение, потом тени, потом чёткость. «Максимальное качество» в настройках это отключает.
+let perfT = 0, perfN = 0, perfStep = 0, perfWait = 4;
+function degrade(){
+  perfStep++;
+  if (perfStep === 1 && composer){ composer = null; return; }
+  if (perfStep <= 2 && renderer.shadowMap.enabled){ perfStep = 2; renderer.shadowMap.enabled = false; dir.castShadow = false; return; }
+  if (dprCut > 0.72){ perfStep = 3; dprCut = Math.max(0.72, dprCut - 0.14); renderer.setPixelRatio(dprFor()); onResize(); }
+}
 function loop(now){
-  const dt = Math.min(0.05, (now - last)/1000); last = now; clockT += reduceMotion ? dt*0.3 : dt; frameN++;
+  const raw = (now - last)/1000;
+  const dt = Math.min(0.05, raw); last = now; clockT += reduceMotion ? dt*0.3 : dt; frameN++;
+  if (!hq && !document.hidden && raw < 1){
+    perfT += raw; perfN++;
+    if (perfT > 2.5){ const fps = perfN/perfT; if (perfWait > 0) perfWait--; else if (fps < 26) degrade(); perfT = 0; perfN = 0; }
+  }
   applyTime(cityHour(), clockT);
   updateCamera(dt);
   // небо, звёзды, сияние, луна — вокруг камеры
