@@ -57,7 +57,7 @@ ol{margin:0;padding-left:20px;display:grid;gap:6px}
 <main>
   <div>
     <h1>Редактор домов</h1>
-    <p class="lead">Выбери жителям здания и цвета, посмотри черновик в городе, потом скачай <b>followers.json</b> и загрузи его на GitHub. Номера и адреса жителей не меняются. <a href="update.html">Обновить жителей из архива →</a></p>
+    <p class="lead">Выбери жителям здания и цвета, посмотри черновик в городе, потом скачай <b>followers.json</b> и загрузи его на GitHub. Номера жителей не меняются. <a href="update.html">Обновить жителей из архива →</a></p>
   </div>
 
   <section class="card">
@@ -100,7 +100,7 @@ let TYPE_NAMES = { big:'Большой дом', mansion:'Особняк', white:
   hats:'Магазин шляп', canteen:'Столовая', restaurant:'Ресторан' };
 let HOUSE_GROUPS = { 'Дома':['big','mansion','white','tower','chalet','gingerbread','izba','modern','castle','igloo','windmill','barn','ice'],
   'Бизнесы':['doner','bakery','cafe','gifts','sweets','pizza','burger','flowers','books','barber','sushi','gym','games','tea','toys','decor','hats','canteen','restaurant'] };
-let AUTO_ORDER = [], FIRST_SPECIAL = 100, autoType = n => AUTO_ORDER[n-1] || '';
+let AUTO_ORDER = [], FIRST_SPECIAL = 100, autoType = n => AUTO_ORDER[n-1] || '', assignAuto = null, autoMap = null;
 
 let base = null;          // как сейчас на сайте: { updated, followers }
 let edits = {};           // n -> { house, color, roof } — только то, что меняли здесь
@@ -111,7 +111,10 @@ const isHex = v => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 const baseOf = n => base.followers.find(f => f.n === n);
 function current(f){ const e = edits[f.n]; return e ? { house: e.house || '', color: e.color || '', roof: e.roof || '' } : { house: f.house || '', color: f.color || '', roof: f.roof || '' }; }
 function isChanged(f){ const c = current(f); return c.house !== (f.house || '') || c.color !== (f.color || '') || c.roof !== (f.roof || ''); }
-function autoName(n){ const t = autoType(n); return !t ? 'обычный дом' : TYPE_NAMES[t] ? TYPE_NAMES[t].toLowerCase() : 'особое здание'; }
+function autoName(n){
+  // как в городе: если рядом уже стоит такое же здание, житель получает другое
+  if (assignAuto && !autoMap) autoMap = assignAuto(buildList().filter(f => !f.left));
+  const t = autoMap ? (autoMap.get(n) || '') : autoType(n); return !t ? 'обычный дом' : TYPE_NAMES[t] ? TYPE_NAMES[t].toLowerCase() : 'особое здание'; }
 
 function buildList(){
   // итоговый список: всё как на сайте + правки (только house/color/roof)
@@ -127,6 +130,7 @@ function buildList(){
 function saveEdits(){
   // храним только реальные отличия
   for (const k of Object.keys(edits)){ const f = baseOf(+k); if (!f || !isChanged(f)) delete edits[k]; }
+  autoMap = null;
   try { localStorage.setItem(EDITS_KEY, JSON.stringify(edits)); } catch(e){}
   const n = Object.keys(edits).length;
   $('cnt').textContent = n; $('dl').disabled = !n; $('reset').disabled = !n;
@@ -188,8 +192,8 @@ async function loadCatalog(){
     const fs = (src.match(/const FIRST_SPECIAL = (\d+)/) || [])[1];
     if (a < 0 || b < 0 || !rngSrc || !fs) return;
     const body = src.slice(src.indexOf('\n', a) + 1, b);
-    const out = new Function(rngSrc + ';const FIRST_SPECIAL=' + fs + ';' + body + ';return { TYPE_NAMES, HOUSE_GROUPS, AUTO_ORDER, FIRST_SPECIAL, autoType: typeof autoType === "function" ? autoType : null };')();
-    TYPE_NAMES = out.TYPE_NAMES; HOUSE_GROUPS = out.HOUSE_GROUPS; AUTO_ORDER = out.AUTO_ORDER; FIRST_SPECIAL = out.FIRST_SPECIAL; if (out.autoType) autoType = out.autoType;
+    const out = new Function(rngSrc + ';const FIRST_SPECIAL=' + fs + ';' + body + ';return { TYPE_NAMES, HOUSE_GROUPS, AUTO_ORDER, FIRST_SPECIAL, autoType: typeof autoType === "function" ? autoType : null, assignAuto: typeof assignAuto === "function" ? assignAuto : null };')();
+    TYPE_NAMES = out.TYPE_NAMES; HOUSE_GROUPS = out.HOUSE_GROUPS; AUTO_ORDER = out.AUTO_ORDER; FIRST_SPECIAL = out.FIRST_SPECIAL; if (out.autoType) autoType = out.autoType; if (out.assignAuto) assignAuto = out.assignAuto;
   } catch(e){}
 }
 
