@@ -506,7 +506,7 @@ function buildMountains(radius){
   mountains.clear();
   const r = rng(5);
   for (let i=0;i<22;i++){
-    const a = i/22*Math.PI*2 + r()*0.2, d = radius + 260 + r()*420, h = 160 + r()*260, w = 170 + r()*200;
+    const a = i/22*Math.PI*2 + r()*0.2, h = 160 + r()*260, w = 170 + r()*200, d = radius + w + 40 + r()*380;   // подножие горы всегда за городом
     const seg = 6 + Math.floor(r()*3);
     const rock = new THREE.Mesh(new THREE.ConeGeometry(w, h, seg, 1), mountainMats.rock);
     rock.position.set(Math.cos(a)*d, h/2 - 4, Math.sin(a)*d); rock.rotation.y = r()*3;
@@ -891,10 +891,13 @@ function buildCity(list){
   buildLandmarks(A, gar, addLamp, addTree);
 
   // ---- лес вокруг ----
-  const rIn = cityHalf + 8, nForest = 260 + R*90;
+  // лес — кольцом вокруг квадратного города; деревья, попавшие на кварталы, пропускаем
+  const rIn = cityHalf + 8, nForest = 260 + R*90, edge = cityHalf + 6;
   for (let i=0;i<nForest;i++){
-    const a = gr()*Math.PI*2, d = rIn + Math.pow(gr(), 0.8)*(110 + R*10);
-    addTree(Math.cos(a)*d, Math.sin(a)*d, 0.9 + gr()*1.1);
+    const a = gr()*Math.PI*2, d = rIn + Math.pow(gr(), 0.8)*(cityHalf*0.42 + 110 + R*10), s = 0.9 + gr()*1.1;
+    const x = Math.cos(a)*d, z = Math.sin(a)*d;
+    if (Math.abs(x) < edge && Math.abs(z) < edge) continue;
+    addTree(x, z, s);
   }
 
   // ---- дороги ----
@@ -958,7 +961,8 @@ function buildCity(list){
 
   // туман и горы под размер города: большой город уходит в дымку, а не рисуется до горизонта
   scene.fog.density = 1.5 / (Math.min(cityHalf, 420) + 260);
-  buildMountains(cityHalf + 120);
+  buildMountains(cityHalf*Math.SQRT2 + 40);   // город квадратный: горы ставим дальше его углов
+  camera.far = Math.max(4000, cityHalf*5); camera.updateProjectionMatrix();
   controls.maxDistance = Math.min(120 + R*45, 560);
   resetSigns(); resetShopSigns(); updateChunks();
 }
