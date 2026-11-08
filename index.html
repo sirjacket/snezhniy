@@ -401,6 +401,7 @@ renderer.setPixelRatio(dprFor());
 renderer.setSize(innerWidth, innerHeight, false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;   // тени пересчитываем, только когда камера сдвинулась (см. loop) — вращение и зум их не меняют
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x141c40, 0.004);
@@ -588,15 +589,28 @@ function colored(geo, hex){
   for (let i=0;i<n;i++) a.set([c.r,c.g,c.b], i*3);
   geo.setAttribute('color', new THREE.BufferAttribute(a,3)); return geo;
 }
+// дальний дом одним куском: стены (без дна) + снежная крыша; aRoof = 1 у крыши, ей не нужен цвет дома
+function hutGeo(){
+  // убираем грани, которых не видно: дно стен, верх стен (его закрывает крыша) и дно крыши
+  const strip = (g, drop) => { const p = g.attributes.position, out = [];
+    for (let i = 0; i < p.count; i += 3){ const ys = [p.getY(i), p.getY(i+1), p.getY(i+2)]; if (!drop(ys)) for (let j = i; j < i + 3; j++) out.push(p.getX(j), p.getY(j), p.getZ(j)); }
+    const r = new THREE.BufferGeometry(); r.setAttribute('position', new THREE.Float32BufferAttribute(out, 3)); r.computeVertexNormals(); return r; };
+  const body = strip(new THREE.BoxGeometry(1,1,1).translate(0,0.5,0).toNonIndexed(), ys => ys.every(y => y < 0.01) || ys.every(y => y > 0.99));
+  const roof = strip(prismGeo(), ys => ys.every(y => y < 0.01)).scale(1.08, 0.5, 1.1).translate(0, 1, 0);
+  const g = THREE.BufferGeometryUtils.mergeBufferGeometries([body, roof]);
+  const a = new Float32Array(g.attributes.position.count); a.fill(1, body.attributes.position.count);
+  g.setAttribute('aRoof', new THREE.BufferAttribute(a, 1)); return g;
+}
 function treeGeo(){
+  const TS = isCoarse ? 6 : 8;
   const parts = [
-    colored(new THREE.CylinderGeometry(0.22,0.28,1.1,6).translate(0,0.55,0), 0x5b3d2e),
-    colored(new THREE.ConeGeometry(1.6,2.0,8).translate(0,2.0,0), 0x2f5d4a),
-    colored(new THREE.ConeGeometry(1.25,1.7,8).translate(0,3.0,0), 0x336a52),
-    colored(new THREE.ConeGeometry(0.85,1.4,8).translate(0,3.9,0), 0x3a7558),
-    colored(new THREE.ConeGeometry(0.9,0.9,8).translate(0,2.55,0), 0xf1f5fc),
-    colored(new THREE.ConeGeometry(0.7,0.75,8).translate(0,3.475,0), 0xf1f5fc),
-    colored(new THREE.ConeGeometry(0.46,0.56,8).translate(0,4.33,0), 0xf6f9ff),
+    colored(new THREE.CylinderGeometry(0.22,0.28,1.1,5,1,true).translate(0,0.55,0), 0x5b3d2e),
+    colored(new THREE.ConeGeometry(1.6,2.0,TS,1,true).translate(0,2.0,0), 0x2f5d4a),
+    colored(new THREE.ConeGeometry(1.25,1.7,TS,1,true).translate(0,3.0,0), 0x336a52),
+    colored(new THREE.ConeGeometry(0.85,1.4,TS,1,true).translate(0,3.9,0), 0x3a7558),
+    colored(new THREE.ConeGeometry(0.9,0.9,TS,1,true).translate(0,2.55,0), 0xf1f5fc),
+    colored(new THREE.ConeGeometry(0.7,0.75,TS,1,true).translate(0,3.475,0), 0xf1f5fc),
+    colored(new THREE.ConeGeometry(0.46,0.56,TS,1,true).translate(0,4.33,0), 0xf6f9ff),
   ];
   return THREE.BufferGeometryUtils.mergeBufferGeometries(parts);
 }
@@ -605,23 +619,24 @@ const GEO = {
   cbox: new THREE.BoxGeometry(1,1,1),
   prism: prismGeo(),
   tree: treeGeo(),
-  bank: new THREE.CylinderGeometry(1,1,1,10,1).rotateZ(Math.PI/2),
+  bank: new THREE.CylinderGeometry(1,1,1,isCoarse ? 6 : 8,1,false,0,Math.PI).rotateZ(Math.PI/2),   // сугроб: только верхняя половина, нижняя всё равно в земле
   pole: new THREE.CylinderGeometry(0.11,0.15,1,6).translate(0,0.5,0),
-  bulb: new THREE.SphereGeometry(1, isCoarse ? 6 : 10, isCoarse ? 5 : 8),   // на телефонах мелочь попроще
+  bulb: new THREE.SphereGeometry(1, isCoarse ? 5 : 8, isCoarse ? 4 : 6),   // на телефонах мелочь попроще
   flat: new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2),
   col: new THREE.CylinderGeometry(0.2,0.25,1,10).translate(0,0.5,0),
-  ucyl: new THREE.CylinderGeometry(1,1,1,isCoarse ? 10 : 16).translate(0,0.5,0),
+  ucyl: new THREE.CylinderGeometry(1,1,1,isCoarse ? 8 : 14).translate(0,0.5,0),
   ucone: new THREE.ConeGeometry(1,1,isCoarse ? 10 : 18).translate(0,0.5,0),
-  torus: new THREE.TorusGeometry(1,0.34,isCoarse ? 6 : 10,isCoarse ? 12 : 22),
+  torus: new THREE.TorusGeometry(1,0.34,isCoarse ? 5 : 8,isCoarse ? 10 : 18),
   htorus: new THREE.TorusGeometry(1,0.42,isCoarse ? 6 : 8,isCoarse ? 8 : 14,Math.PI),
-  usph: new THREE.SphereGeometry(1,isCoarse ? 10 : 16,isCoarse ? 7 : 12),
-  ufrus: new THREE.CylinderGeometry(0.78,1,1,isCoarse ? 10 : 16).translate(0,0.5,0),
+  usph: new THREE.SphereGeometry(1,isCoarse ? 8 : 14,isCoarse ? 6 : 10),
+  ufrus: new THREE.CylinderGeometry(0.78,1,1,isCoarse ? 8 : 14).translate(0,0.5,0),
   awnA: THREE.BufferGeometryUtils.mergeBufferGeometries([0, 2, 4, 6].map(i => new THREE.BoxGeometry(0.125, 1, 1).translate(-0.4375 + i*0.125, 0, 0))),
   awnB: THREE.BufferGeometryUtils.mergeBufferGeometries([1, 3, 5, 7].map(i => new THREE.BoxGeometry(0.125, 1, 1).translate(-0.4375 + i*0.125, 0, 0))),
   treeLo: THREE.BufferGeometryUtils.mergeBufferGeometries([
-    colored(new THREE.ConeGeometry(1.55,3.6,6,1,true).translate(0,2.4,0), 0x2f5d4a),
-    colored(new THREE.ConeGeometry(0.8,1.3,6,1,true).translate(0,3.65,0), 0xf1f5fc),
+    colored(new THREE.ConeGeometry(1.55,3.6,5,1,true).translate(0,2.4,0), 0x2f5d4a),
+    colored(new THREE.ConeGeometry(0.8,1.3,5,1,true).translate(0,3.65,0), 0xf1f5fc),
   ]),
+  hut: hutGeo(),
 };
 for (const g of Object.values(GEO)) if (!g.boundingBox) g.computeBoundingBox();
 function radialTex(inner, outer){
@@ -663,6 +678,11 @@ const MAT = {
   ice: new THREE.MeshPhongMaterial({ color:0xbfe2f3, specular:0xffffff, shininess:90, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2 }),
   star: new THREE.MeshBasicMaterial({ color:0xffd75a }),
   ring: new THREE.MeshBasicMaterial({ color:0xff8a3d, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }),
+  hut: new THREE.MeshLambertMaterial({ color:0xffffff }),
+};
+MAT.hut.onBeforeCompile = sh => {
+  sh.vertexShader = 'attribute float aRoof;\n' + sh.vertexShader.replace('#include <color_vertex>',
+    '#include <color_vertex>\n#ifdef USE_INSTANCING_COLOR\n vColor.xyz = mix(instanceColor.xyz, vec3(0.953, 0.969, 1.0), aRoof);\n#endif');
 };
 const dayLitMats = []; // таблички: подсвечены всегда, но днём ярче
 const glowMats = [];   // вывески, которые ночью светятся
@@ -738,17 +758,34 @@ function roundRect(x, X, Y, W, H, R){ x.beginPath(); x.moveTo(X+R,Y); x.arcTo(X+
 function fitText(x, text, maxW, size, weight, family){
   let s = size; do { x.font = `${weight} ${s}px ${family}`; s -= 2; } while (x.measureText(text).width > maxW && s > 10);
 }
+/* таблички мест рисуются на холсте, только когда попадают в кадр, и выбрасываются, когда долго не видны.
+   Иначе в большом городе сотни табличек школ и больниц держат в памяти телефона больше 100 МБ картинок,
+   и телефон может отобрать у страницы видеокарту (белый экран). */
+const BLANK_TEX = new THREE.DataTexture(new Uint8Array([246, 240, 232, 255]), 1, 1); BLANK_TEX.needsUpdate = true;
+const lazyBoards = []; let boardFrame = 0, boardBudget = 2;
+function lazyBoard(geo, w, h, draw){
+  const m = new THREE.MeshBasicMaterial({ map: BLANK_TEX }); dayLitMats.push(m);
+  const mesh = new THREE.Mesh(geo, m), L = { m, w, h, draw, tex:null, seen:0 };
+  lazyBoards.push(L);
+  mesh.onBeforeRender = () => {
+    L.seen = boardFrame;
+    if (!L.tex && boardBudget > 0){ boardBudget--; L.tex = boardCanvas(w, h, draw); m.map = L.tex; }
+  };
+  return mesh;
+}
+function sweepBoards(){
+  for (const L of lazyBoards) if (L.tex && boardFrame - L.seen > 400){ L.tex.dispose(); L.tex = null; L.m.map = BLANK_TEX; }
+}
 function makeSign(title, sub, pos, rotY){
   const g = new THREE.Group();
-  const tex = boardCanvas(512, 224, (x,w,h) => {
+  const board = lazyBoard(new THREE.PlaneGeometry(6.4, 2.8), 512, 224, (x,w,h) => {
     roundRect(x, 6, 6, w-12, h-12, 26); x.fillStyle = '#fff6e8'; x.fill(); x.lineWidth = 10; x.strokeStyle = '#2a1a14'; x.stroke();
     x.fillStyle = '#d8352f'; x.fillRect(30, 26, w-60, 10);
     x.fillStyle = '#d8352f'; x.textAlign = 'center'; x.textBaseline = 'middle';
     fitText(x, title, w-70, 70, 400, 'Lobster, Georgia, serif'); x.fillText(title, w/2, sub ? 96 : 118);
     if (sub){ x.fillStyle = '#3a3550'; fitText(x, sub, w-70, 32, 800, 'Manrope, Arial, sans-serif'); x.fillText(sub, w/2, 166); }
   });
-  const m = new THREE.MeshBasicMaterial({ map: tex }); dayLitMats.push(m);
-  const board = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 2.8), m); board.position.y = 3.6;
+  board.position.y = 3.6;
   const back = new THREE.Mesh(new THREE.BoxGeometry(6.6, 3.0, 0.22), MAT.wood); back.position.set(0, 3.6, -0.13);
   const p1 = new THREE.Mesh(GEO.box, MAT.wood); p1.scale.set(0.28, 3.6, 0.28); p1.position.set(-2.6, 0, -0.2);
   const p2 = p1.clone(); p2.position.x = 2.6;
@@ -803,7 +840,7 @@ const NEAR_D = isCoarse ? 95 : 135, MID_D = isCoarse ? 220 : 290, GLOW_D = isCoa
 // дальше ULTRA_D дома рисуются упрощёнными коробками; дальше FOG_END всё равно сплошная дымка
 const ULTRA_D = isCoarse ? 380 : 650;
 const TREE_D = isCoarse ? 130 : 290;   // ближе — подробные ёлки, дальше — простые
-let FOG_END = 1500;
+let FOG_END = 1500, LO_D = 1000;   // LO_D: простые ёлки дальше этого от точки, куда смотрим, уже тонут в дымке
 const DETAIL_CHUNK = 5*P, FAR_CHUNK = 10*P;
 let chunkList = [], chunkMap = new Map(), pickMeshes = [];
 function chunkGroup(tier, size, x, z, owner){
@@ -818,15 +855,17 @@ function chunkGroup(tier, size, x, z, owner){
 }
 // крупные участки — для того, что видно издалека; мелкие — для деталей рядом
 const BIG_TIERS = new Set(['far', 'hfar', 'ultra', 'glow', 'tree', 'lo']);
+// 'far' — особые здания: их немного, поэтому кладём крупными кусками, чтобы было меньше вызовов отрисовки
+const tierSize = tier => tier === 'far' ? 4*FAR_CHUNK : BIG_TIERS.has(tier) ? FAR_CHUNK : DETAIL_CHUNK;
 function chunked(geo, mat, items, opts, tier, owner){
-  const size = BIG_TIERS.has(tier) ? FAR_CHUNK : DETAIL_CHUNK, by = new Map();
+  const size = tierSize(tier), by = new Map();
   for (const it of items){ const g = chunkGroup(tier, size, it.p[0], it.p[2], owner); let l = by.get(g); if (!l) by.set(g, l = []); l.push(it); }
   for (const [g, l] of by) instanced(geo, mat, l, opts, g);
 }
 function chunkedPoints(arr, mat, attrs, tier){
   const by = new Map(), n = arr.pos.length/3;
   for (let i = 0; i < n; i++){
-    const g = chunkGroup(tier, BIG_TIERS.has(tier) ? FAR_CHUNK : DETAIL_CHUNK, arr.pos[i*3], arr.pos[i*3+2]);
+    const g = chunkGroup(tier, tierSize(tier), arr.pos[i*3], arr.pos[i*3+2]);
     let b = by.get(g); if (!b){ b = { pos:[] }; for (const [k] of attrs) b[k] = []; by.set(g, b); }
     b.pos.push(arr.pos[i*3], arr.pos[i*3+1], arr.pos[i*3+2]);
     for (const [k, size] of attrs) for (let j = 0; j < size; j++) b[k].push(arr[k][i*size + j]);
@@ -834,14 +873,19 @@ function chunkedPoints(arr, mat, attrs, tier){
   for (const [g, b] of by) pointsFrom(b, mat, attrs, g);
 }
 // крупные части (стены, большие крыши, башни) видны издалека, мелочь — только рядом
+// одинаковые по форме детали разного цвета рисуем одним вызовом: цвет едет в самом экземпляре
+const SNOW_C = 0xf3f7ff, CHIM_C = 0x8a4b3e;
+const tinted = (items, c) => items.map(it => it.c === undefined ? { p:it.p, s:it.s, q:it.q, o:it.o, c } : it);
 const bigSplit = (items, vol = 3.5) => { const big = [], small = []; for (const it of items) (it.s[0]*it.s[1]*it.s[2] >= vol ? big : small).push(it); return [big, small]; };
 function updateChunks(){
-  const cp = camera.position;
+  const cp = camera.position, tg = controls.target;
+  // низко над улицей дальние кварталы всё равно закрыты ближними домами и дымкой — их можно не рисовать
+  const farCut = FOG_END*clamp(0.62 + cp.y/350, 0.62, 1);
   for (const c of chunkList){
     const d = cp.distanceTo(c.center) - c.radius;
-    if (d > FOG_END){ c.group.visible = false; continue; }
+    if (d > FOG_END || (c.tier === 'ultra' && d > farCut)){ c.group.visible = false; continue; }
     c.group.visible = c.tier === 'far' ? true : c.tier === 'near' ? d < NEAR_D : c.tier === 'mid' ? d < MID_D : c.tier === 'tree' ? d < TREE_D : c.tier === 'glow' ? d < GLOW_D
-      : c.tier === 'hfar' ? d < ULTRA_D : c.tier === 'ultra' ? (d >= ULTRA_D || !c.owner || !c.owner.built) : d >= TREE_D;
+      : c.tier === 'hfar' ? d < ULTRA_D : c.tier === 'ultra' ? (d >= ULTRA_D || !c.owner || !c.owner.built) : d >= TREE_D && Math.hypot(c.center.x - tg.x, c.center.z - tg.z) - c.radius < LO_D;
   }
   updateDistricts();
   updateDetail();
@@ -893,8 +937,7 @@ function stepDistrict(D, budget){
   } finally { DIRECT = null; }
   const HF = J.HF;
   chunked(GEO.box, MAT.body, HF.body, { cast:true, receive:true, pick:true }, 'hfar', D);
-  chunked(GEO.prism, MAT.roof, HF.roof, { cast:true, pick:true }, 'hfar', D);
-  chunked(GEO.prism, MAT.snow, HF.snow, { cast:true, receive:true, pick:true }, 'hfar', D);
+  chunked(GEO.prism, MAT.roof, HF.roof.concat(tinted(HF.snow, SNOW_C)), { cast:true, receive:true, pick:true }, 'hfar', D);
   for (const [k, geo] of [['cyl', GEO.ucyl], ['cone', GEO.ucone], ['sph', GEO.usph], ['frus', GEO.ufrus]]) chunked(geo, MAT.body, HF[k], { cast:true }, 'hfar', D);
   chunked(GEO.tree, MAT.tree, J.trees, { cast:true, receive:true }, 'tree', D);
   chunked(GEO.treeLo, MAT.tree, J.trees, {}, 'lo', D);
@@ -981,9 +1024,8 @@ function buildDetail(c){
   const g = { near:new THREE.Group(), mid:new THREE.Group(), glow:new THREE.Group() };
   const [, bodyNear] = bigSplit(A.body), [, capMid] = bigSplit(A.cap);
   cellMesh(GEO.box, MAT.body, bodyNear, { receive:true, pick:true }, g.near, c);
-  cellMesh(GEO.box, MAT.snow, capMid, {}, g.mid, c);
+  cellMesh(GEO.box, MAT.body, tinted(capMid, SNOW_C).concat(tinted(A.chim, CHIM_C), A.board), {}, g.mid, c);
   cellMesh(GEO.cbox, MAT.door, A.door, {}, g.mid, c);
-  cellMesh(GEO.box, MAT.chim, A.chim, {}, g.mid, c);
   cellMesh(GEO.cbox, windowMat, A.win, {}, g.glow, c);
   cellMesh(GEO.bank, MAT.bank, A.bank, { receive:true }, g.mid, c);
   cellMesh(GEO.pole, MAT.pole, A.pole, {}, g.mid, c);
@@ -991,7 +1033,6 @@ function buildDetail(c){
   cellMesh(GEO.flat, MAT.pool, A.pool, {}, g.mid, c);
   cellMesh(GEO.flat, MAT.path, A.path, { receive:true }, g.mid, c);
   cellMesh(GEO.col, MAT.white, A.colm, {}, g.mid, c);
-  cellMesh(GEO.box, MAT.body, A.board, {}, g.mid, c);
   for (const [k, geo] of [['cyl', GEO.ucyl], ['cone', GEO.ucone], ['sph', GEO.usph], ['frus', GEO.ufrus]]) cellMesh(geo, MAT.body, bigSplit(A[k], 6)[1], {}, g.near, c);
   cellMesh(GEO.torus, MAT.body, A.torus, {}, g.near, c);
   cellMesh(GEO.htorus, MAT.body, A.htorus, {}, g.near, c);
@@ -1041,6 +1082,7 @@ function buildCity(list){
   // очистка
   for (const o of [...city.children]){ city.remove(o); o.traverse(n => { if (n.geometry && !n.geometry.userData.view && !Object.values(GEO).includes(n.geometry)) n.geometry.dispose(); if (n.isInstancedMesh) n.dispose?.(); }); }
   dayLitMats.length = 0; glowMats.length = 0; spinners.length = 0;
+  for (const L of lazyBoards) if (L.tex) L.tex.dispose(); lazyBoards.length = 0;
   chunkList = []; chunkMap = new Map(); pickMeshes = []; shopSigns = []; detailCells = new Map(); detailBuilt = []; wheels = []; districts = new Map();
   houses = []; neighborMap = new Map();
   const active = list.filter(f => !f.left);
@@ -1105,12 +1147,11 @@ function buildCity(list){
   for (const h of houses){
     const key = districtKey(h.lot.bx, h.lot.bz);
     let D = districts.get(key);
-    if (!D){ D = { key, name:districtName(key), houses:[], chunks:[], built:false, job:null, pb:[], pr:[], sx:0, sz:0 }; districts.set(key, D); }
+    if (!D){ D = { key, name:districtName(key), houses:[], chunks:[], built:false, job:null, pb:[], sx:0, sz:0 }; districts.set(key, D); }
     D.houses.push(h); h.district = D; D.sx += h.x; D.sz += h.z;
     cellOf(h.x, h.z).houses.push(h);
     const hh = Math.max(3, Math.min(h.h || 3.6, 9)), hw = h.w || 7, hd = h.d || 6;
     D.pb.push({ p:[h.x, 0, h.z], s:[hw, hh, hd], c:h.body, o:h.idx });
-    D.pr.push({ p:[h.x, hh, h.z], s:[hw + 0.6, Math.min(h.rh || 2.4, 3.2), hd + 0.6], o:h.idx });
   }
   for (const D of districts.values()){ D.cx = D.sx/D.houses.length; D.cz = D.sz/D.houses.length; }
   // ---- соседи ----
@@ -1164,17 +1205,14 @@ function buildCity(list){
   for (const c of capFar) bodyFar.push({ p:c.p, s:c.s, c:0xeef3fb });   // плоские заснеженные крыши — в один слой со стенами
   chunked(GEO.box, MAT.body, bodyFar, { cast:true, receive:true, pick:true }, 'far');
   chunked(GEO.box, MAT.body, bodyNear, { receive:true, pick:true }, 'near');
-  chunked(GEO.prism, MAT.roof, A.roof, { cast:true, pick:true }, 'far');
-  chunked(GEO.prism, MAT.snow, A.snow, { cast:true, receive:true, pick:true }, 'far');
+  chunked(GEO.prism, MAT.roof, A.roof.concat(tinted(A.snow, SNOW_C)), { cast:true, receive:true, pick:true }, 'far');
   // дома: крупные части рядом, коробки вдали
   for (const D of districts.values()){
-    chunked(GEO.box, MAT.body, D.pb, { pick:true }, 'ultra', D);
-    chunked(GEO.prism, MAT.snow, D.pr, { pick:true }, 'ultra', D);
-    D.pb = D.pr = null;
+    chunked(GEO.hut, MAT.hut, D.pb, { pick:true }, 'ultra', D);
+    D.pb = null;
   }
-  chunked(GEO.box, MAT.snow, capMid, {}, 'mid');
+  chunked(GEO.box, MAT.body, tinted(capMid, SNOW_C).concat(tinted(A.chim, CHIM_C), A.board), {}, 'mid');
   chunked(GEO.cbox, MAT.door, A.door, {}, 'mid');
-  chunked(GEO.box, MAT.chim, A.chim, {}, 'mid');
   chunked(GEO.cbox, windowMat, A.win, {}, 'glow');
   chunked(GEO.tree, MAT.tree, A.tree, { cast:true, receive:true }, 'tree');
   chunked(GEO.treeLo, MAT.tree, A.tree, {}, 'lo');
@@ -1184,7 +1222,6 @@ function buildCity(list){
   chunked(GEO.flat, MAT.pool, A.pool, {}, 'mid');
   chunked(GEO.flat, MAT.path, A.path, { receive:true }, 'mid');
   chunked(GEO.col, MAT.white, A.colm, {}, 'mid');
-  chunked(GEO.box, MAT.body, A.board, {}, 'mid');
   for (const [k, geo] of [['cyl', GEO.ucyl], ['cone', GEO.ucone], ['sph', GEO.usph], ['frus', GEO.ufrus]]){
     const [big, small] = bigSplit(A[k], 6);
     chunked(geo, MAT.body, big, { cast:true }, 'far');
@@ -1206,7 +1243,7 @@ function buildCity(list){
 
   // туман и горы под размер города: большой город уходит в дымку, а не рисуется до горизонта
   scene.fog.density = 1.5 / (Math.min(cityHalf, 420) + 260);
-  FOG_END = 2.3 / scene.fog.density;
+  FOG_END = 2.3 / scene.fog.density; LO_D = (isCoarse ? 1.3 : 1.6) / scene.fog.density;
   buildMountains(cityHalf*Math.SQRT2 + 40);   // город квадратный: горы ставим дальше его углов
   camera.far = Math.max(4000, cityHalf*5); camera.updateProjectionMatrix();
   controls.maxDistance = Math.min(120 + R*45, 560);
@@ -2753,13 +2790,11 @@ function buildPark(open, A, gar, addLight, addLamp, addTree){
 // Стоят в отдельных кварталах по всему городу, примерно через каждые 7 кварталов.
 // Место открывается, когда город дорастает до него; до этого там стройка с табличкой.
 function lmSign(text, bg, ink, w, h){
-  const tex = boardCanvas(512, 128, (x, W, H) => {
+  return lazyBoard(new THREE.PlaneGeometry(w, h), 512, 128, (x, W, H) => {
     x.fillStyle = bg; x.fillRect(0, 0, W, H);
     x.fillStyle = ink; x.textAlign = 'center'; x.textBaseline = 'middle';
     fitText(x, text, W - 40, 76, 800, 'Manrope, Arial, sans-serif'); x.fillText(text, W/2, H/2 + 4);
   });
-  const m = new THREE.MeshBasicMaterial({ map: tex }); dayLitMats.push(m);
-  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
 }
 function lmDetail(obj, x, z){ chunkGroup('mid', DETAIL_CHUNK, x, z).add(obj); }
 const lmWin = r => [0.1 + r()*0.55, r(), r()*0.6];
@@ -3543,6 +3578,7 @@ $('tgLabels').addEventListener('change', e => { showLabels = e.target.checked; }
 $('tgHQ').checked = hq;
 $('tgHQ').addEventListener('change', e => {
   hq = e.target.checked; store.set('city.hq', hq ? '1' : '0');
+  if (hq){ store.set('city.perf', '0'); perfStep = 0; dprCut = 1; if (!composer) setupComposer(); renderer.shadowMap.enabled = true; dir.castShadow = true; }
   renderer.setPixelRatio(dprFor()); onResize();
   dir.shadow.mapSize.set(hq ? 2048 : 1024, hq ? 2048 : 1024); if (dir.shadow.map){ dir.shadow.map.dispose(); dir.shadow.map = null; }
 });
@@ -3594,7 +3630,7 @@ function makeStory(h){
     snow.material.uniforms.uCenter.value.set(camLook.x, 50, camLook.z);
     dir.position.copy(camLook).addScaledVector(lightDir, 200); dir.target.position.copy(camLook); dir.target.updateMatrixWorld();
     updateSigns();
-    renderFrame(); renderFrame();
+    boardBudget = 99; renderer.shadowMap.needsUpdate = true; renderFrame(); renderer.shadowMap.needsUpdate = true; renderFrame();
     img = document.createElement('canvas'); img.width = W; img.height = HH;
     img.getContext('2d').drawImage(renderer.domElement, 0, 0, W, HH);
   } finally {
@@ -3602,6 +3638,7 @@ function makeStory(h){
     camera.position.copy(saved.pos); camera.quaternion.copy(saved.q); camLook.copy(saved.look);
     renderer.setPixelRatio(saved.dpr); onResize();
     if (selRing) selRing.visible = saved.ring;
+    shadowN = 99;   // после снимка тени пересчитать под обычную камеру
     updateSigns();
   }
   const out = document.createElement('canvas'); out.width = W; out.height = HH; const x = out.getContext('2d');
@@ -3676,22 +3713,49 @@ addEventListener('resize', onResize);
 
 function renderFrame(){ if (composer) composer.render(); else renderer.render(scene, camera); }
 
-let last = performance.now(), clockT = 0, frameN = 0;
+let last = performance.now(), clockT = 0, frameN = 0, shadowN = 0;
+const shadowAt = new THREE.Vector3(1e9, 0, 0);
 // если устройство не успевает (меньше ~26 кадров в секунду), по шагам снижаем нагрузку:
 // сначала свечение, потом тени, потом чёткость. «Максимальное качество» в настройках это отключает.
-let perfT = 0, perfN = 0, perfStep = 0, perfWait = 4;
+// ступень запоминается: на слабом телефоне при следующем заходе город сразу открывается облегчённым, без рывков
+let perfT = 0, perfN = 0, perfGood = 0, perfStep = 0, perfWait = isCoarse ? 1 : 3;
 function degrade(){
-  perfStep++;
+  perfStep++; store.set('city.perf', String(Math.min(perfStep, 3)));
   if (perfStep === 1 && composer){ composer = null; return; }
   if (perfStep <= 2 && renderer.shadowMap.enabled){ perfStep = 2; renderer.shadowMap.enabled = false; dir.castShadow = false; return; }
   if (dprCut > 0.72){ perfStep = 3; dprCut = Math.max(0.72, dprCut - 0.14); renderer.setPixelRatio(dprFor()); onResize(); }
 }
+function restorePerf(){
+  const n = hq ? 0 : clamp(parseInt(store.get('city.perf') || '0', 10) || 0, 0, 3);
+  for (let i = 0; i < n; i++) degrade();
+}
+
+/* ---------- телефон отобрал у страницы видеокарту ----------
+   Так бывает, когда мало памяти (много вкладок) или сайт долго висел в фоне: картинка становится белой.
+   Ловим это и тихо перезагружаем город облегчённым, вместо вечного белого экрана. */
+let ctxLost = false;
+function recoverCity(){
+  if (!ctxLost || document.hidden) return;
+  let n = 0; try { const v = JSON.parse(sessionStorage.getItem('city.lost') || '[]').filter(t => Date.now() - t < 60000); n = v.length; v.push(Date.now()); sessionStorage.setItem('city.lost', JSON.stringify(v)); } catch(e){}
+  if (n >= 2){ $('loadingTxt').textContent = 'Телефону не хватает памяти. Закрой лишние вкладки и обнови страницу.'; return; }
+  location.reload();
+}
+canvas.addEventListener('webglcontextlost', e => {
+  e.preventDefault(); ctxLost = true;
+  store.set('city.perf', String(Math.max(2, parseInt(store.get('city.perf') || '0', 10) || 0)));   // после сбоя — без свечения и теней
+  $('loadingTxt').textContent = 'Город восстанавливается…'; $('loading').classList.remove('done');
+  setTimeout(recoverCity, 1200);
+});
+canvas.addEventListener('webglcontextrestored', () => { ctxLost = true; recoverCity(); });
+document.addEventListener('visibilitychange', () => setTimeout(recoverCity, 300));
 function loop(now){
   const raw = (now - last)/1000;
   const dt = Math.min(0.05, raw); last = now; clockT += reduceMotion ? dt*0.3 : dt; frameN++;
   if (!hq && !document.hidden && raw < 1){
     perfT += raw; perfN++;
-    if (perfT > 2.5){ const fps = perfN/perfT; if (perfWait > 0) perfWait--; else if (fps < 26) degrade(); perfT = 0; perfN = 0; }
+    if (perfT > 2.5){ const fps = perfN/perfT; if (perfWait > 0) perfWait--; else if (fps < 26) degrade();
+      else if (fps > 55 && perfStep > 0 && ++perfGood === 6) store.set('city.perf', String(perfStep - 1));   // телефон справляется с запасом — в следующий раз попробуем красивее
+      perfT = 0; perfN = 0; }
   }
   applyTime(cityHour(), clockT);
   updateCamera(dt);
@@ -3705,6 +3769,8 @@ function loop(now){
   for (const sp of spinners) sp.rotation.y += dt*0.9;
   for (const w of wheels) spinWheel(w, dt);
   if (selRing && selRing.visible){ const k = 1 + Math.sin(clockT*3)*0.06; selRing.scale.x = selRing.scale.z = (Math.max(selected.w, selected.d)/9 + 0.6)*k; }
+  if (renderer.shadowMap.enabled && (camLook.distanceToSquared(shadowAt) > 16 || ++shadowN >= 8)){ renderer.shadowMap.needsUpdate = true; shadowAt.copy(camLook); shadowN = 0; }
+  boardFrame++; boardBudget = 2; if (frameN % 120 === 60) sweepBoards();
   if (frameN % 4 === 0) updateChunks();
   if (frameN % 6 === 0) pickLabels();
   if (frameN % 15 === 0){ updateSigns(); checkDistrict(); }
@@ -3734,6 +3800,7 @@ async function start(){
   } catch(e){}
   if (!list || !list.length){ $('loadingTxt').textContent = 'Не получилось загрузить жителей. Проверь, что рядом с сайтом лежит файл followers.json.'; return; }
   loadList(list);
+  restorePerf();
   const v = homeView(); camera.position.copy(v.pos); controls.target.copy(v.target); controls.update(); camLook.copy(v.target);
   onResize();
   requestAnimationFrame(loop);
