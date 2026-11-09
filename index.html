@@ -67,6 +67,10 @@ body.cinema .ui > *{pointer-events:none}
 .bulbs i.on:nth-child(4n){background:#3d74e0;box-shadow:0 0 8px #7aa8ff}
 .garland .next{font:700 12.5px/1.3 var(--f-ui);color:var(--muted)}
 .garland .next b{color:var(--red);font-weight:800}
+.hmurline{display:block;width:100%;text-align:left;margin-top:8px;padding:8px 10px;border-radius:12px;background:#e8f2fb;border:1px solid #c5ddf2;
+  font:800 12.5px/1.3 var(--f-ui);color:#1d3f6e;animation:hmurPulse 2.6s ease-in-out infinite}
+@keyframes hmurPulse{50%{background:#d6e8f8}}
+@media (prefers-reduced-motion:reduce){.hmurline{animation:none}}
 
 .clock{position:absolute;right:var(--gut-r);top:var(--top);border-radius:16px;padding:9px 12px;display:grid;gap:2px;text-align:right;min-width:96px}
 .clock .t{font:800 20px/1 var(--f-ui);font-variant-numeric:tabular-nums}
@@ -223,6 +227,7 @@ body.cinema .distpill,body.sheet-open .distpill,body.sheet-open .distpill.on,bod
       <span class="bulbs" id="bulbs" aria-hidden="true"></span>
       <span class="next" id="unlockTxt">—</span>
     </button>
+    <button class="hmurline" id="hmurLine" type="button" hidden></button>
   </div>
 
   <div class="clock glass" aria-live="off">
@@ -620,6 +625,27 @@ function colored(geo, hex){
   geo.setAttribute('color', new THREE.BufferAttribute(a,3)); return geo;
 }
 // дальний дом одним куском: стены (без дна) + снежная крыша; aRoof = 1 у крыши, ей не нужен цвет дома
+// машина одним куском, ~46 треугольников: кузов, стёкла, снег на крыше и две «оси» колёс; нос смотрит на +x
+function carGeo(){
+  const parts = [];
+  const box = (w, h, d, x, y, z, tint, dropTop) => {
+    const g = new THREE.BoxGeometry(w, h, d).translate(x, y + h/2, z).toNonIndexed(), p = g.attributes.position, out = [];
+    for (let i = 0; i < p.count; i += 3){
+      const ys = [p.getY(i), p.getY(i+1), p.getY(i+2)];
+      if (ys.every(v => v < y + 1e-3) || (dropTop && ys.every(v => v > y + h - 1e-3))) continue;
+      for (let j = i; j < i + 3; j++) out.push(p.getX(j), p.getY(j), p.getZ(j));
+    }
+    const r = new THREE.BufferGeometry(); r.setAttribute('position', new THREE.Float32BufferAttribute(out, 3)); r.computeVertexNormals();
+    const n = out.length/3, tc = new Float32Array(n*3), fx = new Float32Array(n);
+    if (tint !== null){ const c = new THREE.Color(tint); for (let k = 0; k < n; k++){ tc[k*3] = c.r; tc[k*3+1] = c.g; tc[k*3+2] = c.b; fx[k] = 1; } }
+    r.setAttribute('aTint', new THREE.BufferAttribute(tc, 3)); r.setAttribute('aFix', new THREE.BufferAttribute(fx, 1)); parts.push(r);
+  };
+  box(3.6, 0.75, 1.6, 0, 0.32, 0, null, false);            // кузов — цвет машины
+  box(1.9, 0.62, 1.44, -0.25, 1.07, 0, 0x2c3650, true);    // стёкла (верх закрыт снегом)
+  box(1.98, 0.14, 1.5, -0.25, 1.69, 0, 0xf3f7ff, false);   // снег на крыше
+  for (const x of [-1.15, 1.15]) box(0.62, 0.62, 1.7, x, 0, 0, 0x1c1f27, true);   // колёса
+  return THREE.BufferGeometryUtils.mergeBufferGeometries(parts);
+}
 function hutGeo(){
   // убираем грани, которых не видно: дно стен, верх стен (его закрывает крыша) и дно крыши
   const strip = (g, drop) => { const p = g.attributes.position, out = [];
@@ -667,6 +693,7 @@ const GEO = {
     colored(new THREE.ConeGeometry(0.8,1.3,5,1,true).translate(0,3.65,0), 0xf1f5fc),
   ]),
   hut: hutGeo(),
+  car: carGeo(),
 };
 for (const g of Object.values(GEO)) if (!g.boundingBox) g.computeBoundingBox();
 function radialTex(inner, outer){
@@ -709,6 +736,11 @@ const MAT = {
   star: new THREE.MeshBasicMaterial({ color:0xffd75a }),
   ring: new THREE.MeshBasicMaterial({ color:0xff8a3d, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending }),
   hut: new THREE.MeshLambertMaterial({ color:0xffffff }),
+};
+MAT.car = new THREE.MeshLambertMaterial({ color:0xffffff });
+MAT.car.onBeforeCompile = sh => {   // кузов берёт цвет машины, стёкла/колёса/снег — свои цвета из геометрии
+  sh.vertexShader = 'attribute vec3 aTint;\nattribute float aFix;\n' + sh.vertexShader.replace('#include <color_vertex>',
+    '#include <color_vertex>\n#ifdef USE_INSTANCING_COLOR\n vColor.xyz = mix(instanceColor.xyz, aTint, aFix);\n#endif');
 };
 MAT.hut.onBeforeCompile = sh => {
   sh.vertexShader = 'attribute float aRoof;\n' + sh.vertexShader.replace('#include <color_vertex>',
@@ -1045,11 +1077,21 @@ function cellMesh(geo, mat, items, opts, parent, c){
 }
 const noTree = () => {};
 function buildDetail(c){
-  const A = newA(), gar = { pos:[], aColor:[], aPhase:[], aSize:[] }, smk = { pos:[], aPhase:[] };
-  const addLamp = (x,z,h=4.6) => { A.pole.push({ p:[x,0,z], s:[1,h,1] }); A.bulb.push({ p:[x,h+0.15,z], s:[0.34,0.34,0.34] }); A.pool.push({ p:[x,0.07,z], s:[12,1,12] }); };
-  for (const b of c.blocks) blockDecor(b, A, addLamp);
+  const A = newA(), gar = { pos:[], aColor:[], aPhase:[], aSize:[] }, smk = { pos:[], aPhase:[] }, cars = [];
+  const dark = HM.dark, isDark = (x, z) => dark && districtAt(x, z) === dark;   // район, где Хмурь выключил свет
+  const addLamp = (x,z,h=4.6) => { A.pole.push({ p:[x,0,z], s:[1,h,1] }); if (isDark(x, z)) return; A.bulb.push({ p:[x,h+0.15,z], s:[0.34,0.34,0.34] }); A.pool.push({ p:[x,0.07,z], s:[12,1,12] }); };
+  for (const b of c.blocks){ blockDecor(b, A, addLamp); parkCars(b, cars); }
   EMIT_LAZY = true; A_boardList = A.board;
-  try { for (const h of c.houses) emitHouse(h, A, gar, smk, noTree); }
+  try {
+    for (const h of c.houses){
+      const w0 = A.win.length, g0 = gar.pos.length;
+      emitHouse(h, A, gar, smk, noTree);
+      if (dark && h.district === dark){
+        for (let i = w0; i < A.win.length; i++){ const it = A.win[i]; A.win[i] = { ...it, c:[2, 0.5, 0] }; }   // окна не загорятся
+        gar.pos.length = g0; gar.aColor.length = g0; gar.aPhase.length = g0/3; gar.aSize.length = g0/3;
+      }
+    }
+  }
   finally { EMIT_LAZY = false; A_boardList = null; }
   const g = { near:new THREE.Group(), mid:new THREE.Group(), glow:new THREE.Group() };
   const [, bodyNear] = bigSplit(A.body), [, capMid] = bigSplit(A.cap);
@@ -1063,6 +1105,7 @@ function buildDetail(c){
   cellMesh(GEO.flat, MAT.pool, A.pool, {}, g.mid, c);
   cellMesh(GEO.flat, MAT.path, A.path, { receive:true }, g.mid, c);
   cellMesh(GEO.col, MAT.white, A.colm, {}, g.mid, c);
+  cellMesh(GEO.car, MAT.car, cars, {}, g.mid, c);
   for (const [k, geo] of [['cyl', GEO.ucyl], ['cone', GEO.ucone], ['sph', GEO.usph], ['frus', GEO.ufrus]]) cellMesh(geo, MAT.body, bigSplit(A[k], 6)[1], {}, g.near, c);
   cellMesh(GEO.torus, MAT.body, A.torus, {}, g.near, c);
   cellMesh(GEO.htorus, MAT.body, A.htorus, {}, g.near, c);
@@ -1186,6 +1229,7 @@ function buildCity(list){
     D.pb.push({ p:[h.x, 0, h.z], s:[hw, hh, hd], c:h.body, o:h.idx });
   }
   for (const D of districts.values()){ D.cx = D.sx/D.houses.length; D.cz = D.sz/D.houses.length; }
+  planHmur();
   // ---- соседи ----
   for (const h of houses) neighborMap.set(`${h.lot.road}|${h.lot.side}|${h.lot.xi}`, h);
 
@@ -1203,6 +1247,7 @@ function buildCity(list){
   buildLandmarks(A, gar, addLamp, addTree);
   buildAirport(A, gar, addLight, addLamp, addTree);
   buildSanta(A, gar, smk, addLight, addLamp, addTree);
+  buildHmur(A, gar, addLight, addTree);
 
   // ---- лес вокруг ----
   // лес — кольцом вокруг квадратного города; деревья, попавшие на кварталы, пропускаем
@@ -1663,6 +1708,7 @@ function updateShopSigns(){
   const cp = camera.position, LIM = 190*190, near = [];
   camera.updateMatrixWorld(); projM.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(projM);
   for (const sg of shopSigns){
+    if (HM.dark && sg.h.district === HM.dark) continue;   // в районе без света и вывески не горят
     const dx = cp.x-sg.pos.x, dy = cp.y-sg.pos.y, dz = cp.z-sg.pos.z, d2 = dx*dx+dy*dy+dz*dz;
     if (d2 > LIM) continue;
     if (Math.sin(sg.rotY)*dx + Math.cos(sg.rotY)*dz < 0) continue;          // вывеска смотрит от камеры
@@ -2834,6 +2880,230 @@ function lmSign(text, bg, ink, w, h){
     fitText(x, text, W - 40, 76, 800, 'Manrope, Arial, sans-serif'); x.fillText(text, W/2, H/2 + 4);
   });
 }
+/* ============================== машины ==============================
+   Припаркованные стоят у сугробов и строятся вместе с участком рядом с камерой (одним вызовом на участок).
+   Едущих — маленький пул вокруг того места, куда смотрит камера: одна машина = одна строка в общем InstancedMesh,
+   так что 30 машин рисуются за 3 вызова (машины, ёлки на крышах, фары). */
+const CAR_COLORS = [0xd8352f, 0x2f3b63, 0xf4f6fb, 0x3a3a44, 0xf2c230, 0x5b8fd6, 0x2f8a4a, 0x9aa3b5, 0x8a2d4a, 0xf4f6fb];
+const CAR_Q = [0, 1, 2, 3].map(k => new THREE.Quaternion().setFromAxisAngle(AX_Y, k*Math.PI/2));
+function parkCars(b, cars){
+  if (b.sp) return;
+  const r = rng((b.bx*73856093) ^ (b.bz*19349663) ^ 0x5eed), cx = b.bx*P, cz = b.bz*P, off = HALF_BLOCK + 0.9;
+  const car = (x, z, q) => cars.push({ p:[x, 0, z], s:[1, 1, 1], q, c:CAR_COLORS[Math.floor(r()*CAR_COLORS.length)] });
+  for (const sd of [1, -1]){
+    for (const o of [-12.6, -7.5, 7.5, 12.6]) if (r() < 0.14) car(cx + o, cz + sd*off, CAR_Q[r() < 0.5 ? 0 : 2]);
+    for (const o of [-11, -4, 4, 11]) if (r() < 0.14) car(cx + sd*off, cz + o, CAR_Q[r() < 0.5 ? 1 : 3]);
+  }
+}
+const carLightMat = pointMaterial(
+  `attribute vec3 aColor; uniform float uNight, uScale; varying vec3 vC; varying float vB;
+   #include <fog_pars_vertex>
+   void main(){ vec4 mvPosition = modelViewMatrix*vec4(position,1.0); gl_Position = projectionMatrix*mvPosition;
+     gl_PointSize = uNight < 0.15 ? 0.0 : 0.55*uScale/max(-mvPosition.z,0.1);
+     vB = 2.6*uNight; vC = aColor;
+     #include <fog_vertex>
+   }`,
+  `varying vec3 vC; varying float vB;
+   #include <fog_pars_fragment>
+   void main(){ float d = length(gl_PointCoord-0.5); if(d>0.5) discard;
+     gl_FragColor = vec4(vC*vB*(0.7+0.6*smoothstep(0.5,0.0,d)), 1.0);
+     #include <fog_fragment>
+   }`);
+const traffic = { N: isCoarse ? 16 : 32, cars:[], mesh:null, tree:null, pts:null };
+const tmpTQ = new THREE.Quaternion(), tmpV = new THREE.Vector3(), Q_ROOF = new THREE.Quaternion().setFromAxisAngle(AX_Z, Math.PI/2), S_ROOF = new THREE.Vector3(0.42, 0.62, 0.42), S0 = new THREE.Vector3(0, 0, 0), S1 = new THREE.Vector3(1, 1, 1);
+function setupTraffic(){
+  const N = traffic.N;
+  traffic.mesh = new THREE.InstancedMesh(GEO.car, MAT.car, N);
+  traffic.tree = new THREE.InstancedMesh(GEO.treeLo, MAT.tree, N);
+  for (const m of [traffic.mesh, traffic.tree]){ m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); }   // count обнуляем ниже: setColorAt в r128 берёт размер из count
+  const r = rng(4242);
+  for (let i = 0; i < N; i++){
+    traffic.cars.push({ alive:false, axis:0, line:0, dir:1, s:0, v:9, tree: r() < 0.3 });
+    traffic.mesh.setColorAt(i, tmpC.set(i % 7 === 3 ? 0xf2c230 : CAR_COLORS[Math.floor(r()*CAR_COLORS.length)]));
+    traffic.tree.setColorAt(i, tmpC.setRGB(1, 1, 1));
+  }
+  traffic.mesh.count = traffic.tree.count = 0;
+  const pos = new Float32Array(N*12), col = new Float32Array(N*12);
+  for (let i = 0; i < N; i++) for (let k = 0; k < 4; k++) col.set(k < 2 ? [1, 0.92, 0.7] : [1, 0.12, 0.08], (i*4 + k)*3);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage)); g.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+  traffic.pts = new THREE.Points(g, carLightMat); traffic.pts.frustumCulled = false; scene.add(traffic.pts);
+}
+const CAR_LIGHTS = [[1.82, 0.72, 0.52], [1.82, 0.72, -0.52], [-1.82, 0.78, 0.55], [-1.82, 0.78, -0.55]];
+function spawnCar(c, around){
+  const lim = cityHalf - 6;
+  for (let t = 0; t < 6; t++){
+    const axis = Math.random() < 0.5 ? 0 : 1, look = axis === 0 ? camLook.z : camLook.x, along = axis === 0 ? camLook.x : camLook.z;
+    const j = clamp(Math.round(look/P - 0.5) + Math.floor(Math.random()*7) - 3, -R - 1, R), line = (j + 0.5)*P;
+    const sPos = clamp(along + (Math.random()*2 - 1)*around, -lim, lim), dir = Math.random() < 0.5 ? 1 : -1;
+    if (Math.abs(line) > lim) continue;
+    if (traffic.cars.some(o => o !== c && o.alive && o.axis === axis && o.line === line && o.dir === dir && Math.abs(o.s - sPos) < 10)) continue;
+    Object.assign(c, { alive:true, axis, line, dir, s:sPos, v:7 + Math.random()*5 }); return;
+  }
+  c.alive = false;
+}
+function updateTraffic(dt){
+  if (!traffic.mesh) return;
+  // далеко от земли машин не разглядеть — не тратим на них кадр; на слабом телефоне их меньше
+  const camH = camera.position.distanceTo(camLook), around = clamp(camH*0.9, 90, 190);
+  const n = !houses.length || camH > 650 || perfStep >= 3 ? 0 : perfStep >= 2 ? traffic.N >> 1 : traffic.N;
+  const pos = traffic.pts.geometry.attributes.position.array, lim = cityHalf - 4;
+  for (let i = 0; i < n; i++){
+    const c = traffic.cars[i];
+    if (c.alive){
+      c.s += c.v*c.dir*dt;
+      const look = c.axis === 0 ? camLook.z : camLook.x, along = c.axis === 0 ? camLook.x : camLook.z;
+      if (Math.abs(c.s) > lim || Math.abs(c.s - along) > around*1.15 || Math.abs(c.line - look) > around*1.15) c.alive = false;
+    }
+    if (!c.alive) spawnCar(c, around);
+    const x = c.axis === 0 ? c.s : c.line - 0.85*c.dir, z = c.axis === 0 ? c.line + 0.85*c.dir : c.s;
+    const q = CAR_Q[c.axis === 0 ? (c.dir > 0 ? 0 : 2) : (c.dir > 0 ? 3 : 1)];
+    tmpP.set(x, 0, z); tmpM.compose(tmpP, q, c.alive ? S1 : S0); traffic.mesh.setMatrixAt(i, tmpM);
+    for (let k = 0; k < 4; k++){ tmpV.set(...CAR_LIGHTS[k]).applyMatrix4(tmpM); pos[(i*4 + k)*3] = tmpV.x; pos[(i*4 + k)*3 + 1] = c.alive ? tmpV.y : -50; pos[(i*4 + k)*3 + 2] = tmpV.z; }
+    tmpP.set(x, 0, z).add(tmpV.set(-0.25, 1.83, 0).applyQuaternion(q)).add(tmpV.set(0.85, 0, 0).applyQuaternion(q));
+    tmpTQ.copy(q).multiply(Q_ROOF); tmpM.compose(tmpP, tmpTQ, c.tree && c.alive ? S_ROOF : S0); traffic.tree.setMatrixAt(i, tmpM);
+  }
+  traffic.mesh.count = traffic.tree.count = n;
+  traffic.mesh.instanceMatrix.needsUpdate = traffic.tree.instanceMatrix.needsUpdate = true;
+  traffic.pts.geometry.attributes.position.needsUpdate = true; traffic.pts.geometry.setDrawRange(0, n*4);
+}
+
+/* ============================== Хмурь, ледяной ворчун ==============================
+   Меняй stage, когда выходит новый ролик:
+     0 — Хмуря нет
+     1 — вечером в районе district погас свет, вверху строка «Кто это сделал?»
+     2 — от района к лесу ведут следы, на дороге брошенная гирлянда
+     3 — Хмурь стоит на краю города, за ним в лесу его ледяная пещера с горой украденных огней
+     4 — Хмурь прячется: каждый день в новом месте города (на перекрёстке), на карте его нет
+     5 — подобрел: свет вернулся, он катается на катке с гирляндой. Включится сам, когда жителей станет goal.
+   Посмотреть любой этап только у себя, не меняя сайт для всех: добавь к адресу ?hmur=3 */
+const HMUR = { stage:1, district:'Пряничный квартал', goal:60000 };
+try { const q = new URLSearchParams(location.search).get('hmur'); if (q !== null) HMUR.stage = clamp(parseInt(q, 10) || 0, 0, 5); } catch(e){}
+const HMUR_O = -9995;
+let HM = { stage:0 };
+function planHmur(){
+  HM = { stage: HMUR.stage >= 1 && HMUR.stage < 5 && total >= HMUR.goal ? 5 : HMUR.stage };
+  if (!HM.stage || !districts.size){ HM.stage = 0; return; }
+  const all = [...districts.values()];
+  const D = all.find(d => d.name === HMUR.district) || all.sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[Math.min(1, all.length - 1)];
+  HM.D = D; HM.dark = HM.stage <= 4 ? D : null;
+  // следы идут по дороге от района наружу — мимо аэропорта и секретного здания
+  const ext = cityHalf + 4, snap = v => (Math.round(v/P - 0.5) + 0.5)*P;
+  const alongX = Math.abs(D.cx) >= Math.abs(D.cz), sg = Math.sign(alongX ? D.cx : D.cz) || 1;
+  let line = snap(alongX ? D.cz : D.cx);
+  if (alongX && sg > 0 && Math.abs(line) < 330) line = (Math.sign(line) || 1)*snap(345);
+  if (!alongX && sg < 0 && Math.abs(line) < 90) line = (Math.sign(line) || 1)*snap(100);
+  const pt = a => alongX ? [a, line] : [line, a];
+  HM.alongX = alongX; HM.sg = sg; HM.line = line; HM.a0 = alongX ? D.cx : D.cz; HM.a1 = sg*(ext + 60);
+  HM.start = pt(HM.a0); HM.edge = pt(sg*(ext + 8)); HM.cave = pt(sg*(ext + 74));
+  HM.out = alongX ? [sg, 0] : [0, sg];   // направление «из города»
+  if (HM.stage === 3){ HM.pos = [HM.edge[0] + (alongX ? 0 : 4), HM.edge[1] + (alongX ? 4 : 0)]; HM.yaw = Math.atan2(-HM.out[0], -HM.out[1]); }
+  else if (HM.stage === 4){
+    const day = Math.floor((Date.now() + 5*3600e3)/864e5), r = rng(day*977 + 13), span = Math.max(2, R - 1);
+    let i = 2, j = 2;
+    for (let t = 0; t < 40; t++){ i = Math.floor(r()*(2*span + 1)) - span; j = Math.floor(r()*(2*span + 1)) - span; if (Math.max(Math.abs(i), Math.abs(j)) >= 2) break; }
+    const ox = r() < 0.5 ? 3.4 : -3.4, oz = r() < 0.5 ? 3.4 : -3.4;
+    HM.pos = [(i + 0.5)*P + ox, (j + 0.5)*P + oz]; HM.yaw = Math.atan2(-ox, -oz);
+    HM.spotD = districtAt(HM.pos[0], HM.pos[1]) || D;
+  }
+  else if (HM.stage === 5){ HM.pos = [P + 3, 1]; HM.yaw = Math.atan2(0.62, 0.48); }
+}
+const inHmur = (x, z) => HM.stage >= 3 && Math.abs(x - HM.cave[0]) < 34 && Math.abs(z - HM.cave[1]) < 34;
+function hmurLine(){
+  const D = HM.D ? HM.D.name : '', g = fmtNum(HMUR.goal);
+  return ['', `🌑 Вечером в районе «${D}» погас свет. Кто это сделал?`, `👣 Из района «${D}» к лесу ведут странные следы…`,
+          `🥶 Это Хмурь! Наберём ${g} — он вернёт свет`, '🥶 Хмурь спрятался в городе. Найди его!', '💡 Хмурь подобрел и вернул свет!'][HM.stage];
+}
+function nightLook(){ if (manualHour === null || manualHour > 6.5 && manualHour < 18.5){ manualHour = 21.5; syncStudio(); } }
+function showHmur(){
+  closeSheets();
+  if (HM.stage === 1){ nightLook(); goToDistrict(HM.D); toast(`В районе «${HM.D.name}» не горит ни одно окно и ни одна гирлянда. Включил вечер, чтобы было видно. Время вернёшь в ⏱`); return; }
+  if (HM.stage === 2){ nightLook(); const [x, z] = HM.start, [ox, oz] = HM.out; flyTo(new THREE.Vector3(x - ox*14 + oz*10, 9, z - oz*14 + ox*10), new THREE.Vector3(x + ox*10, 0, z + oz*10), 2.2); toast('Брошенная гирлянда и следы. Они ведут из города в лес…'); return; }
+  if (HM.stage === 4){ goToDistrict(HM.spotD); toast(`Подсказка: сегодня Хмурь где-то в районе «${HM.spotD.name}», на перекрёстке. Найди его и напиши в комментах, где он стоит!`); return; }
+  const [x, z] = HM.pos, fx = Math.sin(HM.yaw), fz = Math.cos(HM.yaw);
+  flyTo(new THREE.Vector3(x + fx*16 + fz*6, 8, z + fz*16 - fx*6), new THREE.Vector3(x, 4.2, z), 2.2);
+  toast(HM.stage === 5 ? 'Хмурь: «Ладно… с гирляндами и правда веселее». Свет вернулся!' : `Хмурь: «Слишком ярко! Наберёте ${fmtNum(HMUR.goal)} — так и быть, верну ваши гирлянды»`);
+}
+function hmurClicked(){
+  if (HM.stage === 4) toast(`Нашёл! Хмурь прячется в районе «${(HM.spotD || HM.D).name}». Напиши в комментах, где он стоит 🥶`);
+  else if (HM.stage === 5) toast('Хмурь: «Ладно… с гирляндами и правда веселее»');
+  else toast(`Хмурь: «Слишком ярко! Наберёте ${fmtNum(HMUR.goal)} — так и быть, верну ваши гирлянды»`);
+}
+function showCave(){
+  closeSheets(); const [x, z] = HM.cave, [ox, oz] = HM.out;
+  flyTo(new THREE.Vector3(x - ox*30 + oz*14, 14, z - oz*30 + ox*14), new THREE.Vector3(x, 3, z), 2.2);
+  toast(HM.stage === 5 ? 'Пещера Хмуря опустела: все огни вернулись в город' : 'Пещера Хмуря. Вот куда делись гирлянды!');
+}
+// сам Хмурь: ~9 метров, ледяная голова, серый драный тулуп, вязаная шапка набок; нос-сосулька; лицом к +z
+function emitHmur(A, gar, x, z, yaw, good){
+  const yq = qAxis(AX_Y, yaw), cs = Math.cos(yaw), sn = Math.sin(yaw), coat = 0x7d8494, ice = 0xd4ecf8, ink = 0x16213a;
+  const put = (list, dx, y, dz, sc, c, ql) => list.push({ p:[x + dx*cs + dz*sn, y, z - dx*sn + dz*cs], s:sc, c, q: ql ? yq.clone().multiply(ql) : yq, o:HMUR_O });
+  const rz = a => qAxis(AX_Z, a), rx = a => qAxis(AX_X, a);
+  for (const sx of [-1, 1]) put(A.sph, sx*0.65, 0.35, 0.25, [0.75, 0.5, 1.0], 0x3a4150);
+  put(A.frus, 0, 0.4, 0, [1.9, 3.8, 1.7], coat);
+  put(A.cyl, 0, 2.6, 0, [1.74, 0.26, 1.58], 0x8a6a45);
+  put(A.body, 0.62, 1.7, 1.4, [0.7, 0.62, 0.12], 0x5e6676, qAxis(AX_Y, 0.4));
+  put(A.body, -0.5, 3.05, 1.24, [0.55, 0.5, 0.12], 0x9aa1b0, qAxis(AX_Y, -0.35));
+  put(A.sph, 0, 4.2, 0, [1.6, 0.7, 1.4], coat);
+  put(A.sph, 0, 5.4, 0, [1.25, 1.45, 1.15], ice);
+  for (const sx of [-1, 1]){
+    put(A.sph, sx*0.42, 5.65, 1.05, [0.17, 0.24, 0.1], ink);
+    put(A.body, sx*0.42, good ? 6.05 : 5.98, 1.0, [0.6, 0.13, 0.14], ink, rz(good ? 0 : sx*0.4));
+    put(A.body, sx*0.4, good ? 4.9 : 4.74, 0.98, [0.26, 0.1, 0.1], ink, rz(good ? sx*0.5 : -sx*0.5));   // уголки рта: вверх — улыбка
+    put(A.cone, sx*1.05, 5.6, 0, [0.16, 0.8, 0.16], 0xeaf7ff, rz(-sx*1.15));      // сосульки-вихры
+    put(A.body, sx*1.3, 4.35, 0.1, [0.55, 2.0, 0.55], coat, rz(sx > 0 ? Math.PI + 0.3 : Math.PI - 0.3));   // руки
+    put(A.sph, sx*1.9, 2.4, 0.1, [0.42, 0.46, 0.42], 0x3a4150);
+  }
+  put(A.body, 0, 4.84, 1.0, [0.6, 0.1, 0.1], ink);
+  put(A.cone, 0, 5.35, 1.0, [0.2, 1.0, 0.2], 0xeaf7ff, rx(Math.PI/2));           // нос-сосулька
+  put(A.cyl, 0, 6.3, 0, [1.2, 0.32, 1.12], 0x4a5262);
+  put(A.cone, 0.15, 6.55, -0.05, [1.15, 1.9, 1.1], 0x5e6676, rz(-0.35));
+  put(A.sph, 0.8, 8.32, -0.05, [0.36, 0.36, 0.36], 0xf4f6fb);
+  const lp = (dx, y, dz, c, sz) => { gar.pos.push(x + dx*cs + dz*sn, y, z - dx*sn + dz*cs); gar.aColor.push(...c); gar.aPhase.push(Math.random()); gar.aSize.push(sz); };
+  if (!good){
+    put(A.sph, -1.35, 4.7, -0.95, [1.2, 1.4, 1.05], 0x8a6a45);                    // мешок с украденными огнями
+    for (let k = 0; k < 9; k++){ const a = k/9*Math.PI*2; lp(-1.35 + Math.cos(a)*0.55, 6.0 + (k % 3)*0.12, -0.95 + Math.sin(a)*0.5, LIGHTS_MULTI[k % 5], 0.55); }
+  } else for (let k = 0; k < 36; k++){ const a = k/36*Math.PI*2; lp(Math.cos(a)*2.1, 2.9 + Math.sin(a*3)*0.25, Math.sin(a)*2.0, LIGHTS_MULTI[k % 5], 0.5); }
+  // невидимая «рамка» для клика по всему Хмурю
+  const pick = new THREE.InstancedMesh(GEO.box, new THREE.MeshBasicMaterial({ visible:false }), 1);
+  tmpM.compose(tmpP.set(x, 0, z), Q0, tmpS.set(3.6, 8.6, 3.6)); pick.setMatrixAt(0, tmpM);
+  pick.userData.owners = [HMUR_O]; pick.userData.sphere = new THREE.Sphere(new THREE.Vector3(x, 4, z), 6); pickMeshes.push(pick); city.add(pick);
+}
+function buildHmur(A, gar, addLight, addTree){
+  if (!HM.stage) return;
+  const [ox, oz] = HM.out, r = rng(9551);
+  // следы и брошенная гирлянда — пока свет не вернулся
+  if (HM.stage >= 2 && HM.stage <= 4){
+    const a0 = HM.a0, a1 = HM.a1, n = Math.floor(Math.abs(a1 - a0)/1.7);
+    for (let k = 0; k < n; k++){
+      const a = a0 + (a1 - a0)*k/n, side = k % 2 ? 0.38 : -0.38;
+      const x = HM.alongX ? a : HM.line + side, z = HM.alongX ? HM.line + side : a;
+      A.body.push({ p:[x, 0.045, z], s: HM.alongX ? [0.62, 0.02, 0.34] : [0.34, 0.02, 0.62], c:0x9fb6d6 });
+    }
+    const [sx, sz] = HM.start;
+    for (let k = 0; k < 18; k++){ const t = k/17, w = Math.sin(t*9)*1.4; addLight(sx + ox*t*9 + oz*w, 0.12, sz + oz*t*9 + ox*w, LIGHTS_MULTI[k % 5], 0.45); }
+  }
+  // ледяная пещера в лесу: гора льда, тёмный вход, сосульки, табличка и куча украденных огней
+  if (HM.stage >= 3){
+    const [cx, cz] = HM.cave, back = (d) => [cx + ox*d, cz + oz*d];
+    const b6 = back(6); A.sph.push({ p:[b6[0], 0, b6[1]], s:[16, 11, 14], c:0xcfe9f7 });
+    A.sph.push({ p:[cx + oz*14 + ox*10, 0, cz + ox*14 + oz*10], s:[9, 7, 8], c:0xbfe0f2 });
+    // вход: тёмная арка на склоне, над ней ледяной козырёк с сосульками
+    const front = 6 - 16, ent = back(front + 0.4), lint = back(front - 0.6);
+    A.sph.push({ p:[ent[0], 0, ent[1]], s: HM.alongX ? [2.4, 6.2, 5.2] : [5.2, 6.2, 2.4], c:0x162036 });
+    A.sph.push({ p:[lint[0], 6.0, lint[1]], s: HM.alongX ? [2.2, 1.3, 6.6] : [6.6, 1.3, 2.2], c:0xd8eefa });
+    for (let k = -4; k <= 4; k++){ const e = back(front - 1.4); A.cone.push({ p:[e[0] + oz*k*1.25, 5.4, e[1] + ox*k*1.25], s:[0.3, 1.0 + (k % 2 ? 0.7 : 0), 0.3], q:qAxis(AX_X, Math.PI), c:0xeaf7ff }); }
+    const sg = lmSign('ПЕЩЕРА ХМУРЯ', '#162036', '#cfe9f7', 9, 1.5), sp = back(-17);
+    sg.position.set(sp[0] + oz*7, 2.4, sp[1] + ox*7); sg.rotation.y = Math.atan2(-ox, -oz); lmDetail(sg, cx, cz);
+    A.pole.push({ p:[sp[0] + oz*7, 0, sp[1] + ox*7], s:[0.6, 2.4, 0.6] });
+    if (HM.stage <= 4) for (let k = 0; k < 70; k++){
+      const a = r()*Math.PI*2, d = Math.sqrt(r())*2.6, h = (1 - d/2.6)*1.6*r(), e = back(-14.5);
+      addLight(e[0] + Math.cos(a)*d, 0.2 + h, e[1] + Math.sin(a)*d, LIGHTS_MULTI[k % 5], 0.5);
+    }
+    for (let k = 0; k < 14; k++){ const a = r()*Math.PI*2, d = 22 + r()*10; addTree(cx + Math.cos(a)*d, cz + Math.sin(a)*d, 1 + r()*0.6); }
+  }
+  if (HM.pos) emitHmur(A, gar, HM.pos[0], HM.pos[1], HM.yaw, HM.stage === 5);
+}
+
 /* ============================== аэропорт и секретное здание ==============================
    Оба стоят за городом: аэропорт — к востоку, секретное здание — к северу. Город растёт кольцами,
    поэтому они просто отодвигаются вместе с краем города, и ничьи дома и адреса не сдвигаются. */
@@ -2847,7 +3117,7 @@ function placeOutskirts(){
   SANTA = { x: 0, z: -(cityHalf + 66), open: total >= SECRET.at };
   WORLD = { x0: -(cityHalf + 30), x1: AIR.x1 + 20, z0: SANTA.z - 60, z1: cityHalf + 30 };
 }
-const inOutskirts = (x, z) => (x > AIR.x0 - 8 && x < AIR.x1 + 12 && Math.abs(z) < 300) || (Math.abs(x - SANTA.x) < 62 && z > SANTA.z - 52 && z < SANTA.z + 46);
+const inOutskirts = (x, z) => inHmur(x, z) || (x > AIR.x0 - 8 && x < AIR.x1 + 12 && Math.abs(z) < 300) || (Math.abs(x - SANTA.x) < 62 && z > SANTA.z - 52 && z < SANTA.z + 46);
 
 // самолёт: нос смотрит на −x, середина фюзеляжа в (px, pz)
 const PLANE_LIVERY = [0xd8352f, 0x2f6fd6, 0x2f8a4a];
@@ -3609,6 +3879,7 @@ canvas.addEventListener('pointerup', e => {
   else if (ow === PARK_O) showPark();
   else if (ow === AIR_O) showAirport();
   else if (ow === SANTA_O) showSanta();
+  else if (ow === HMUR_O) hmurClicked();
   else if (ow !== null && ow < 0) goToPlace(landmarks[-ow - 1]);
   else if (hit) selectHouse(houses[ow], true);
   else if (!$('card').hidden){ closeSheets(); }
@@ -3691,7 +3962,7 @@ function placeRow(icon, title, sub, onClick){
 const PLACE_KINDS = [['school','🏫','Школы'], ['hospital','🏥','Больницы'], ['university','🎓','Университеты'], ['mall','🛍️','ТЦ'], ['district','📍','Районы']];
 const KIND_WORDS = { school:'школа школы школу шк', hospital:'больница больницы больницу поликлиника', university:'университет университеты универ вуз институт',
   mall:'тц торговый центр магазин молл', district:'район районы', airport:'аэропорт самолет самолеты аэро', secret:'секрет секретное здание тайна санта клаус дед мороз подарок',
-  hall:'мэрия мэр администрация', rink:'каток коньки лед', park:'парк колесо обозрения ярмарка горка', tree:'елка центр площадь', site:'стройка строится' };
+  hall:'мэрия мэр администрация', hmur:'хмурь хмуря ворчун пещера следы свет гирлянды', rink:'каток коньки лед', park:'парк колесо обозрения ярмарка горка', tree:'елка центр площадь', site:'стройка строится' };
 const PLACE_ALIASES = Object.values(KIND_WORDS).join(' ').split(' ');
 const pnorm = q => q.toLowerCase().replace(/ё/g, 'е').replace(/№/g, ' ').replace(/(\d)([^\d\s])|([^\d\s])(\d)/g, '$1$3 $2$4').replace(/[«»"'.,()\-—:!?]/g, ' ').trim();
 let PLACES = [], placeCat = 'all', placeShown = 60;
@@ -3702,6 +3973,13 @@ function collectPlaces(){
   add({ icon:'⛸️', name:'Каток', sub: total >= 25 ? 'у ёлки' : 'откроется на 25 жителях', kind:'rink', go:() => { closeSheets(); flyTo(new THREE.Vector3(P + 10, 30, 46), new THREE.Vector3(P, 2, 0)); } });
   add({ icon:'🎡', name:'Снежный парк', sub: total >= 100 ? 'колесо обозрения, горка, ярмарка' : 'откроется на 100 жителях', kind:'park', go:showPark });
   add({ icon:'✈️', name:AIR_NAME, sub:'за восточной окраиной · рейсы на Северный полюс', kind:'airport', go:showAirport });
+  if (HM.stage){
+    const hs = HM.stage, Dn = HM.D.name;
+    add({ icon: ['', '🌑', '👣', '🥶', '🥶', '💡'][hs], name: hs <= 2 ? (hs === 1 ? 'Кто выключил свет?' : 'Странные следы') : hs === 4 ? 'Хмурь прячется' : 'Хмурь',
+          sub: hs === 1 ? `район «${Dn}» без света` : hs === 2 ? `из района «${Dn}» в лес` : hs === 3 ? `на краю города · наберём ${fmtNum(HMUR.goal)} — вернёт свет` : hs === 4 ? 'каждый день в новом месте — найди его!' : 'подобрел и катается на катке',
+          kind:'hmur', secret: hs < 5, go:showHmur });
+    if (hs >= 3) add({ icon:'🧊', name:'Пещера Хмуря', sub: hs === 5 ? 'опустела — свет вернулся' : 'там украденные гирлянды', kind:'hmur', go:showCave });
+  }
   if (SANTA.open) add({ icon:'🎅', name:SECRET.openName, sub:'Северный полюс, за северной окраиной', kind:'secret', go:showSanta });
   else add({ icon:'🎁', name:SECRET.name, sub:`откроется на ${fmtNum(SECRET.at)} · ещё ${fmtNum(SECRET.at - total)}`, kind:'secret', secret:true, go:showSanta });
   for (const L of [...landmarks].sort((a, b) => a.kind.localeCompare(b.kind) || a.num - b.num)){
@@ -3781,6 +4059,7 @@ function mapBase(){
   const g = c.getContext('2d'), B = MAP.B = Math.max(cityHalf + 14, AIR.x1 + 14, -SANTA.z + 54), k = N/(2*B);
   g.fillStyle = '#e9eef6'; g.fillRect(0, 0, N, N);
   const keys = [...districts.keys()].sort(), col = new Map(keys.map((key, i) => [key, key === 'c' ? '#f6d77e' : DIST_COL[i % DIST_COL.length]]));
+  if (HM.dark) col.set(HM.dark.key, '#4a5270');   // район без света — тёмный и на карте
   // кварталы районов светлой подложкой, дома — точками цвета района
   for (const D of districts.values()){
     g.fillStyle = col.get(D.key); g.globalAlpha = 0.28;
@@ -3818,6 +4097,8 @@ function drawMap(){
   if (total >= 25) icon('⛸️', P, 0, isz);
   if (total >= 100) icon('🎡', 0, P, isz);
   icon('✈️', AIR.x0 + 70, 0, isz + 4); icon(SANTA.open ? '🎅' : '🎁', SANTA.x, SANTA.z, isz + 4);
+  if (HM.stage >= 3) icon('🧊', HM.cave[0], HM.cave[1], isz + 2);
+  if (HM.pos && HM.stage !== 4) icon('🥶', HM.pos[0], HM.pos[1], isz + 4);
   const EM = { school:'🏫', hospital:'🏥', university:'🎓', mall:'🛍️' };
   for (const L of landmarks) if ((L.open && MAP.zoom > 1.4) || MAP.zoom > 2.4) icon(L.open ? EM[L.kind] || '📍' : '🏗️', L.bx*P, L.bz*P, isz);
   // названия районов: крупные первыми, без наложений
@@ -3880,6 +4161,8 @@ function flyToPoint(x, z){
     if (had && e.type === 'pointerup' && !MAP.ptrs.size && MAP.moved < 8){
       const w = mapWorld(e.clientX, e.clientY), T = mapXf(), near = 22*T.dpr/T.sc;   // попал рядом со значком — летим к самому месту
       const spots = [[0, 0, goHome], [-P, 0, showHall], [AIR.x0 + 70, 0, showAirport], [SANTA.x, SANTA.z, showSanta]];
+      if (HM.stage >= 3) spots.push([HM.cave[0], HM.cave[1], showCave]);
+      if (HM.pos && HM.stage !== 4) spots.push([HM.pos[0], HM.pos[1], showHmur]);
       if (total >= 100) spots.push([0, P, showPark]);
       if (MAP.zoom > 1.4) for (const L of landmarks) if (L.open || MAP.zoom > 2.4) spots.push([L.bx*P, L.bz*P, () => goToPlace(L)]);
       let best = null, bd = near; for (const sp of spots){ const d = Math.hypot(sp[0] - w.x, sp[1] - w.z); if (d < bd){ bd = d; best = sp; } }
@@ -3909,6 +4192,7 @@ $('placesBtn').addEventListener('click', () => {
   if (open){ openPlaces(); $('places').hidden = false; $('placesBtn').classList.add('on'); document.body.classList.add('sheet-open'); }
 });
 $('mClose').addEventListener('click', () => closeSheets(true));
+$('hmurLine').addEventListener('click', showHmur);
 $('pClose').addEventListener('click', () => closeSheets(true));
 $('exitCine').addEventListener('click', stopCinema);
 $('cClose').addEventListener('click', () => closeSheets());
@@ -4057,6 +4341,7 @@ function loadList(list){
     b.textContent = nx.name;
     ut.append(document.createTextNode('Следующее: '), b, document.createTextNode(` — ещё ${fmtNum(left)} ${plural(left, ['житель','жителя','жителей'])}`));
   } else ut.textContent = 'Все места открыты';
+  const hl = $('hmurLine'); hl.hidden = !HM.stage; hl.textContent = HM.stage ? hmurLine() : '';
 }
 
 function onResize(){
@@ -4126,6 +4411,7 @@ function loop(now){
   for (const sp of spinners) sp.rotation.y += dt*0.9;
   for (const w of wheels) spinWheel(w, dt);
   updateAirPlane(now/1000);
+  updateTraffic(dt);
   if (selRing && selRing.visible){ const k = 1 + Math.sin(clockT*3)*0.06; selRing.scale.x = selRing.scale.z = (Math.max(selected.w, selected.d)/9 + 0.6)*k; }
   if (renderer.shadowMap.enabled && (camLook.distanceToSquared(shadowAt) > 16 || ++shadowN >= 8)){ renderer.shadowMap.needsUpdate = true; shadowAt.copy(camLook); shadowN = 0; }
   boardFrame++; boardBudget = 2; if (frameN % 120 === 60) sweepBoards();
@@ -4158,7 +4444,7 @@ async function start(){
   } catch(e){}
   if (!list || !list.length){ $('loadingTxt').textContent = 'Не получилось загрузить жителей. Проверь, что рядом с сайтом лежит файл followers.json.'; return; }
   loadList(list);
-  restorePerf();
+  restorePerf(); setupTraffic();
   const v = homeView(); camera.position.copy(v.pos); controls.target.copy(v.target); controls.update(); camLook.copy(v.target);
   onResize();
   requestAnimationFrame(loop);
