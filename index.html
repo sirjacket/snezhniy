@@ -139,9 +139,30 @@ input[type=range]{width:100%;accent-color:var(--red);height:26px}
 .seg button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
 .tg{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:13px;background:#fff;border:1px solid var(--line);font:800 14px/1.2 var(--f-ui)}
 .tg input{width:20px;height:20px;accent-color:var(--red)}
-.plist{display:grid;gap:6px}
-#places .card-body{grid-template-columns:minmax(0,1fr);max-height:calc(100dvh - var(--bot) - var(--dock-h) - 96px);overflow-y:auto;overscroll-behavior:contain}
-.mapbox{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#e9eef6;aspect-ratio:1/1;max-height:46dvh;margin:0 auto;width:100%;min-width:0}
+.plist{display:grid;gap:6px;grid-template-columns:minmax(0,1fr)}
+#places .card-body{grid-template-columns:minmax(0,1fr);grid-auto-rows:max-content;max-height:min(540px, calc(100dvh - var(--top) - var(--bot) - var(--dock-h) - 200px));overflow-y:auto;overscroll-behavior:contain;padding-top:0}
+#places .psearch,#places .pcats{position:sticky;z-index:2}
+#places .psearch{top:0;margin-top:12px;box-shadow:0 -12px 0 var(--glass)}
+#places .pcats{top:52px;background:var(--glass);padding:6px 0 4px;margin:-6px 0 -4px}
+#mapSheet{width:min(560px, calc(100% - 32px))}
+#mapSheet .card-body{grid-template-columns:minmax(0,1fr);padding:10px 10px 12px;gap:8px}
+.mapbox{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#e9eef6;height:min(calc(100dvh - var(--top) - var(--bot) - var(--dock-h) - 120px), 620px);width:100%;min-width:0}
+.psearch{display:flex;align-items:center;height:46px;border-radius:14px;background:#fff;border:1.5px solid var(--line);padding:0 12px;gap:8px}
+.psearch:focus-within{border-color:var(--ink)}
+.psearch svg{width:18px;height:18px;flex:none;color:var(--muted)}
+.psearch input{flex:1;min-width:0;height:100%;border:0;background:transparent;font:700 16px/1 var(--f-ui);color:var(--ink);outline:none}
+.psearch input::placeholder{color:#8f99b5}
+.pcats{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;min-height:44px;align-items:center}
+.pcats::-webkit-scrollbar{display:none}
+.pcats button{flex:none;height:34px;padding:0 12px;border-radius:999px;background:#fff;border:1px solid var(--line);font:800 13px/1 var(--f-ui);color:var(--ink);white-space:nowrap}
+.pcats button em{font-style:normal;color:var(--muted);margin-left:5px;font-weight:700}
+.pcats button[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.pcats button[aria-selected="true"] em{color:rgba(255,255,255,.7)}
+.prow small{display:block;font:700 12px/1.25 var(--f-ui);color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prow span b{font-weight:800}
+.prow.secret{background:linear-gradient(100deg,#fff 40%,#fff1d6);border-color:#e9b649}
+.pempty{margin:6px 2px;font:700 13.5px/1.4 var(--f-ui);color:var(--muted)}
+.pmore{height:44px;border-radius:12px;border:1px dashed var(--line);font:800 13.5px/1 var(--f-ui);color:var(--ink);background:transparent}
 .mapbox canvas{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none;cursor:grab}
 .mapzoom{position:absolute;right:8px;top:8px;display:grid;gap:6px}
 .mapzoom button{width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,.94);border:1px solid var(--line);font:800 20px/1 var(--f-ui);color:var(--ink);display:grid;place-items:center;box-shadow:0 2px 6px rgba(21,32,67,.12)}
@@ -176,7 +197,7 @@ body.cinema .exitc{opacity:.4;pointer-events:auto}
   padding:9px 18px;border-radius:999px;font:800 15px/1.2 var(--f-ui,system-ui);color:var(--ink);white-space:nowrap;max-width:calc(100vw - 40px);overflow:hidden;text-overflow:ellipsis}
 .distpill.on{opacity:1;transform:translate(-50%,0)}
 .distpill em{font-style:normal;color:var(--muted,#5a6480);font-weight:700}
-body.cinema .distpill,body.sheet-open .distpill{opacity:0}
+body.cinema .distpill,body.sheet-open .distpill,body.sheet-open .distpill.on,body.cinema .distpill.on{opacity:0}
 .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
 .dgrid h4{grid-column:1/-1;margin:6px 2px 0;font:800 13px/1.2 var(--f-ui,system-ui);color:var(--muted,#5a6480);text-transform:uppercase;letter-spacing:.04em}
 .dchip{border:1px solid var(--line);background:#fff;border-radius:12px;padding:8px 10px;text-align:left;font:800 13.5px/1.2 var(--f-ui,system-ui);color:var(--ink);min-height:44px}
@@ -229,9 +250,18 @@ body.cinema .distpill,body.sheet-open .distpill{opacity:0}
     </div>
   </section>
 
+  <section class="card glass" id="mapSheet" hidden>
+    <div class="strip"><span>Карта города</span><small>нажми — полетим</small><button class="x" id="mClose" aria-label="Закрыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="card-body"><div class="mapbox" id="mapBox"><canvas id="mapCv" aria-label="Карта города: нажми, чтобы полететь туда"></canvas><div class="mapzoom"><button type="button" id="mapIn" aria-label="Приблизить карту">+</button><button type="button" id="mapOut" aria-label="Отдалить карту">−</button><button type="button" id="mapMe" aria-label="Показать, где я"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button><button type="button" id="mapHome" aria-label="К ёлке, в центр города">🎄</button></div></div><p class="maphint">Нажми на карту или на значок — камера полетит туда. Двигай пальцем, щипком приближай. <b>●</b> — ты здесь.</p></div>
+  </section>
+
   <section class="card glass" id="places" hidden>
-    <div class="strip"><span>Карта города</span><small>районы · места</small><button class="x" id="pClose" aria-label="Закрыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <div class="card-body"><div class="mapbox" id="mapBox"><canvas id="mapCv" aria-label="Карта города: нажми, чтобы полететь туда"></canvas><div class="mapzoom"><button type="button" id="mapIn" aria-label="Приблизить карту">+</button><button type="button" id="mapOut" aria-label="Отдалить карту">−</button><button type="button" id="mapMe" aria-label="Показать, где я"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button></div></div><p class="maphint">Нажми на карту — камера полетит туда. Двигай пальцем, щипком приближай. <b>●</b> — ты здесь.</p><div class="plist" id="pList"></div></div>
+    <div class="strip"><span>Места города</span><small id="pCount"></small><button class="x" id="pClose" aria-label="Закрыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="card-body">
+      <label class="psearch" for="pq"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="pq" type="search" placeholder="Школа 54, больница, ТЦ, район…" autocomplete="off" spellcheck="false" enterkeyhint="search"></label>
+      <div class="pcats" id="pCats" role="tablist"></div>
+      <div class="plist" id="pList"></div>
+    </div>
   </section>
 
   <section class="card glass" id="studio" hidden>
@@ -258,12 +288,12 @@ body.cinema .distpill,body.sheet-open .distpill{opacity:0}
   <form class="dock glass" id="searchForm" autocomplete="off" role="search">
     <label class="search" for="q">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
-      <input id="q" type="search" placeholder="Найди свой дом по нику" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+      <input id="q" type="search" placeholder="Ник или «школа 54»" autocapitalize="off" spellcheck="false" enterkeyhint="search">
       <button class="go" type="submit" aria-label="Найти"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button>
     </label>
     <span class="sep"></span>
-    <button class="dbtn" id="homeBtn" type="button" aria-label="К ёлке"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 2.5l4.5 6.5h-2.6l3.6 5.5h-3.2l3.2 5H6.5l3.2-5H6.5L10.1 9H7.5z"/><path d="M12 19.5v2"/></svg></button>
-    <button class="dbtn" id="placesBtn" type="button" aria-label="Карта города: районы и места"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg></button>
+    <button class="dbtn" id="mapBtn" type="button" aria-label="Карта города"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg></button>
+    <button class="dbtn" id="placesBtn" type="button" aria-label="Места: школы, больницы, ТЦ, районы"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg></button>
     <button class="dbtn" id="cineBtn" type="button" aria-label="Прогулка по улицам"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2.5"/><path d="M16 11l5-3v8l-5-3z"/></svg></button>
     <button class="dbtn" id="studioBtn" type="button" aria-label="Съёмка и время"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></button>
   </form>
@@ -1099,8 +1129,10 @@ function buildCity(list){
   landmarks = lmSlots.filter(s => s.r <= R || s === nextLm);
   if (nextLm) R = Math.max(R, nextLm.r);
   const lmKeys = new Set(landmarks.map(s => s.bx + ',' + s.bz));
-  goals = [...UNLOCKS, ...landmarks.map(s => ({ key:s.kind, name:s.name, at:s.at, block:[s.bx, s.bz] }))].sort((a, b) => a.at - b.at);
   cityHalf = (R + 0.5)*P;
+  placeOutskirts();
+  goals = [...UNLOCKS, ...landmarks.map(s => ({ key:s.kind, name:s.name, at:s.at, block:[s.bx, s.bz] })),
+           { key:'santa', name:SECRET.name, at:SECRET.at, go:showSanta }].sort((a, b) => a.at - b.at);
 
   const A = { body:[], roof:[], snow:[], cap:[], door:[], chim:[], win:[], tree:[], bank:[], pole:[], bulb:[], pool:[], path:[],
               cyl:[], cone:[], torus:[], htorus:[], colm:[], gold:[], awn:{}, sph:[], frus:[], board:[] };
@@ -1169,6 +1201,8 @@ function buildCity(list){
       st.n++; if (SHOPS[h.type] || ['doner','canteen','restaurant'].includes(h.type)) st.biz++; st.maxX = Math.max(st.maxX, Math.abs(h.x)); }
     streetsTour = [...sm.values()].filter(st => st.n >= 4).sort((a, b) => (Math.abs(a.road + 0.5) - Math.abs(b.road + 0.5)) || (a.road - b.road) || (b.half - a.half)); }
   buildLandmarks(A, gar, addLamp, addTree);
+  buildAirport(A, gar, addLight, addLamp, addTree);
+  buildSanta(A, gar, smk, addLight, addLamp, addTree);
 
   // ---- лес вокруг ----
   // лес — кольцом вокруг квадратного города; деревья, попавшие на кварталы, пропускаем
@@ -1176,7 +1210,7 @@ function buildCity(list){
   for (let i=0;i<nForest;i++){
     const a = gr()*Math.PI*2, d = rIn + Math.pow(gr(), 0.8)*(cityHalf*0.42 + 110 + R*10), s = 0.9 + gr()*1.1;
     const x = Math.cos(a)*d, z = Math.sin(a)*d;
-    if (Math.abs(x) < edge && Math.abs(z) < edge) continue;
+    if ((Math.abs(x) < edge && Math.abs(z) < edge) || inOutskirts(x, z)) continue;
     addTree(x, z, s);
   }
 
@@ -1193,6 +1227,10 @@ function buildCity(list){
     const zc = (j+0.5)*P; quad(-ext, zc-4, ext, zc+4, -ext/8, ext/8, false, 0.03);
     const xc = (j+0.5)*P; quad(xc-4, -ext, xc+4, ext, -ext/8, ext/8, true, 0.035);
   }
+  // дороги к аэропорту и к секретному зданию
+  quad(ext, 0.5*P - 4, AIR.x0 + 1, 0.5*P + 4, ext/8, (AIR.x0 + 1)/8, false, 0.03);
+  quad(0.5*P - 4, SANTA.z + 30, 0.5*P + 4, -ext, (SANTA.z + 30)/8, -ext/8, true, 0.035);
+  quad(-4, SANTA.z + 30, 0.5*P - 4, SANTA.z + 38, -0.5, (0.5*P - 4)/8, false, 0.031);
   const rg = new THREE.BufferGeometry();
   rg.setAttribute('position', new THREE.Float32BufferAttribute(rp,3));
   rg.setAttribute('uv', new THREE.Float32BufferAttribute(ruv,2));
@@ -1244,7 +1282,7 @@ function buildCity(list){
   // туман и горы под размер города: большой город уходит в дымку, а не рисуется до горизонта
   scene.fog.density = 1.5 / (Math.min(cityHalf, 420) + 260);
   FOG_END = 2.3 / scene.fog.density; LO_D = (isCoarse ? 1.3 : 1.6) / scene.fog.density;
-  buildMountains(cityHalf*Math.SQRT2 + 40);   // город квадратный: горы ставим дальше его углов
+  buildMountains(Math.max(cityHalf*Math.SQRT2 + 40, Math.hypot(AIR.x1, 300) + 30, -SANTA.z + 90));   // город квадратный: горы ставим дальше его углов
   camera.far = Math.max(4000, cityHalf*5); camera.updateProjectionMatrix();
   controls.maxDistance = Math.min(120 + R*45, 560);
   resetSigns(); camera.updateMatrixWorld(); updateChunks();
@@ -2796,6 +2834,235 @@ function lmSign(text, bg, ink, w, h){
     fitText(x, text, W - 40, 76, 800, 'Manrope, Arial, sans-serif'); x.fillText(text, W/2, H/2 + 4);
   });
 }
+/* ============================== аэропорт и секретное здание ==============================
+   Оба стоят за городом: аэропорт — к востоку, секретное здание — к северу. Город растёт кольцами,
+   поэтому они просто отодвигаются вместе с краем города, и ничьи дома и адреса не сдвигаются. */
+const AIR_O = -9997, SANTA_O = -9996;
+const SECRET = { at:65000, name:'Секретное здание', openName:'Дом Санта Клауса' };
+const AIR_NAME = 'Аэропорт «Снежный»';
+let AIR = { x0:100, x1:300, plane:null }, SANTA = { x:0, z:-120, open:false };
+let WORLD = { x0:-90, x1:90, z0:-90, z1:90 };   // куда можно увести камеру
+function placeOutskirts(){
+  AIR = { x0: cityHalf + 24, plane:null }; AIR.x1 = AIR.x0 + 196; AIR.rx = AIR.x0 + 165; AIR.cx = AIR.x0 + 64;
+  SANTA = { x: 0, z: -(cityHalf + 66), open: total >= SECRET.at };
+  WORLD = { x0: -(cityHalf + 30), x1: AIR.x1 + 20, z0: SANTA.z - 60, z1: cityHalf + 30 };
+}
+const inOutskirts = (x, z) => (x > AIR.x0 - 8 && x < AIR.x1 + 12 && Math.abs(z) < 300) || (Math.abs(x - SANTA.x) < 62 && z > SANTA.z - 52 && z < SANTA.z + 46);
+
+// самолёт: нос смотрит на −x, середина фюзеляжа в (px, pz)
+const PLANE_LIVERY = [0xd8352f, 0x2f6fd6, 0x2f8a4a];
+function emitPlane(A, px, pz, livery, o, r){
+  const white = 0xf4f6fb, steel = 0xb9c0cc, dark = 0x2a2f3d;
+  A.sph.push({ p:[px, 3.4, pz], s:[11, 1.9, 1.9], c:white });
+  A.sph.push({ p:[px - 8.6, 3.75, pz], s:[1.8, 0.9, 1.25], c:0x3a4560 });   // окна кабины
+  for (let dx = -6; dx <= 6.01; dx += 1.2) for (const sz of [-1, 1]) A.win.push({ p:[px + dx, 3.75, pz + sz*1.83], s:[0.5, 0.42, 0.12], c:[1, 0.82, 0.5] });
+  for (const sz of [-1, 1]){
+    A.body.push({ p:[px + 2.4, 2.45, pz + sz*6.6], s:[4.2, 0.32, 13], q: qAxis(AX_Y, sz*0.36), c:steel, o });
+    A.sph.push({ p:[px - 0.4, 1.95, pz + sz*5.6], s:[1.9, 0.85, 0.85], c:0x8d93a3 });
+    A.body.push({ p:[px + 9.8, 4.5, pz + sz*2.6], s:[2.2, 0.22, 5], q: qAxis(AX_Y, sz*0.3), c:white, o });
+    A.body.push({ p:[px + 1.8, 0, pz + sz*1.3], s:[0.35, 1.6, 0.35], c:dark, o });
+  }
+  A.body.push({ p:[px + 9.4, 4.4, pz], s:[3.4, 4.8, 0.3], c:livery, o });
+  A.body.push({ p:[px - 1, 2.0, pz], s:[16, 0.45, 0.4], c:livery, o });   // полоса на брюхе
+  A.body.push({ p:[px - 7.2, 0, pz], s:[0.3, 1.9, 0.3], c:dark, o });
+}
+// самолёт, который взлетает и садится — отдельные меши, чтобы двигать его целиком
+function makeAirPlane(){
+  const g = new THREE.Group(), white = new THREE.MeshLambertMaterial({ color:0xf4f6fb }), red = new THREE.MeshLambertMaterial({ color:0xd8352f }), steel = new THREE.MeshLambertMaterial({ color:0xb9c0cc });
+  const add = (geo, mat, p, s, q) => { const m = new THREE.Mesh(geo, mat); m.position.set(...p); m.scale.set(...s); if (q) m.quaternion.copy(q); m.castShadow = true; g.add(m); return m; };
+  add(GEO.usph, white, [0, 3.4, 0], [11, 1.9, 1.9]);
+  for (const sz of [-1, 1]){
+    add(GEO.box, steel, [2.4, 2.45, sz*6.6], [4.2, 0.32, 13], qAxis(AX_Y, sz*0.36));
+    add(GEO.usph, steel, [-0.4, 1.95, sz*5.6], [1.9, 0.85, 0.85]);
+    add(GEO.box, white, [9.8, 4.5, sz*2.6], [2.2, 0.22, 5], qAxis(AX_Y, sz*0.3));
+  }
+  add(GEO.box, red, [9.4, 4.4, 0], [3.4, 4.8, 0.3]);
+  const beacon = new THREE.Mesh(GEO.bulb, new THREE.MeshBasicMaterial({ color:0xff3b30 })); beacon.scale.setScalar(0.35); beacon.position.set(11, 9.3, 0); g.add(beacon);
+  g.userData.beacon = beacon; return g;
+}
+// круг полёта 90 с: посадка → пробег → стоянка → разбег → взлёт → улетел в дымку
+function updateAirPlane(t){
+  const g = AIR.plane; if (!g) return;
+  const T = t % 90, rx = AIR.rx; let z, y = 0, pitch = 0, show = true;
+  if (T < 24){ const u = T/24; z = 245 + 720*(1 - u); y = 118*(1 - u); pitch = 0.05; }
+  else if (T < 34){ const k = T - 24; z = 245 - (30*k - 1.5*k*k); }
+  else if (T < 40){ z = 95; }
+  else if (T < 52){ const k = T - 40; z = 95 - 0.5*(430/144)*k*k; pitch = k > 10 ? 0.12*(k - 10) : 0; }
+  else if (T < 76){ const k = T - 52; z = -120 - 35.8*k - 0.5*k*k; y = 0.32*k*k; pitch = 0.22; }
+  else { show = false; z = 0; }
+  g.visible = show; if (!show) return;
+  g.position.set(rx, y, z); g.rotation.set(0, -Math.PI/2, 0); g.rotateZ(-pitch);
+  g.userData.beacon.visible = (t*1.2 % 1) < 0.25;
+}
+function buildAirport(A, gar, addLight, addLamp, addTree){
+  const x0 = AIR.x0, o = AIR_O, r = rng(777), asph = 0x454b5e, conc = 0xa7adba, white = 0xf4f6fb, yellow = 0xe9b649;
+  const pad = (x, z, w, d, c, y = 0) => A.body.push({ p:[x, y, z], s:[w, 0.06, d], c, o });
+  // привокзальная площадь и парковка
+  pad(x0 + 6, 0, 12, 140, 0xc9ced8);
+  const CAR = [0xd8352f, 0x2f3b63, 0xf4f6fb, 0x3a3a44, 0xe2b44f, 0x5b8fd6];
+  for (let z = -54; z <= 54; z += 3.2){ if (r() < 0.3 || Math.abs(z - 19) < 6) continue; const c = CAR[Math.floor(r()*CAR.length)], x = x0 + 3.2;
+    A.body.push({ p:[x, 0.25, z], s:[3.6, 0.75, 1.7], c, o }); A.body.push({ p:[x + 0.2, 1.0, z], s:[1.9, 0.6, 1.5], c, o }); A.cap.push({ p:[x + 0.2, 1.6, z], s:[1.85, 0.12, 1.45] }); }
+  for (let z = -60; z <= 60; z += 20) addLamp(x0 + 10.5, z, 5.2);
+  // терминал: стеклянный фасад к городу, к полю — телетрапы
+  const tx = x0 + 26, front = x0 + 12;
+  A.body.push({ p:[tx, 0, 0], s:[28, 11, 120], c:0xe3e7ef, o });
+  A.body.push({ p:[tx, 11, 0], s:[29, 0.6, 121], c:0x2a3a6a, o });
+  A.cap.push({ p:[tx, 11.6, 0], s:[28.6, 0.3, 120.6] });
+  A.body.push({ p:[front - 2.5, 7.2, 0], s:[5, 0.5, 124], c:0x2a3a6a, o });   // козырёк над входом
+  A.cap.push({ p:[front - 2.5, 7.7, 0], s:[4.9, 0.2, 123.8] });
+  for (let z = -57; z <= 57.01; z += 3){
+    A.win.push({ p:[front - 0.06, 3.4, z], s:[0.12, 5.2, 2.6], c:[1, 0.86, 0.55] });
+    A.win.push({ p:[front - 0.06, 9.0, z], s:[0.12, 2.4, 2.6], c:lmWin(r) });
+    A.win.push({ p:[x0 + 40.06, 6.5, z], s:[0.12, 3.4, 2.6], c:lmWin(r) });
+  }
+  for (let i = 0; i <= 150; i++){ const z = -60 + i*0.8, c = LIGHTS_MULTI[i % 5]; addLight(front - 5, 7.15, z, c, 0.42); }
+  const sg = lmSign('АЭРОПОРТ', '#1f4fa0', '#ffffff', 30, 5.2); sg.position.set(tx - 4, 15.2, 0); sg.rotation.y = -Math.PI/2; lmDetail(sg, tx, 0);
+  A.body.push({ p:[tx - 3.6, 11.6, 0], s:[0.5, 6.4, 32], c:0x1f4fa0, o });
+  const sg2 = makeSign(AIR_NAME, 'рейсы на Северный полюс', new THREE.Vector3(x0 + 4, 0, 26), -Math.PI/2 + 0.25); lmDetail(sg2, x0, 26);
+  // телетрапы и самолёты у гейтов
+  const gates = [-40, 0, 40];
+  gates.forEach((gz, i) => {
+    A.body.push({ p:[x0 + 46, 3.2, gz], s:[12, 2.6, 2.6], c:0xcfd5e0, o });
+    A.body.push({ p:[x0 + 50, 0, gz], s:[0.6, 3.2, 0.6], c:0x7c8496, o });
+    emitPlane(A, x0 + 63, gz, PLANE_LIVERY[i % 3], o, r);
+  });
+  // перрон, рулёжка и полоса
+  pad(x0 + 76, 0, 72, 190, conc);
+  for (const gz of gates) for (let x = x0 + 44; x < x0 + 110; x += 4) A.body.push({ p:[x, 0.06, gz], s:[2.2, 0.02, 0.3], c:yellow, o });
+  pad(x0 + 118, 0, 12, 470, asph);
+  for (let z = -232; z <= 232; z += 8) A.body.push({ p:[x0 + 118, 0.06, z], s:[0.3, 0.02, 4.5], c:yellow, o });
+  for (const cz of [-224, 0, 224]) pad(x0 + 136, cz, 24, 12, asph);
+  const rx = AIR.rx;
+  pad(rx, 0, 30, 520, asph);
+  for (let z = -230; z <= 230; z += 20) A.body.push({ p:[rx, 0.06, z], s:[0.8, 0.02, 10], c:white, o });
+  for (const sz of [-1, 1]) for (let k = -3.5; k <= 3.5; k++) A.body.push({ p:[rx + k*3.4, 0.06, sz*247], s:[1.6, 0.02, 14], c:white, o });
+  for (const sx of [-1, 1]) A.body.push({ p:[rx + sx*14.3, 0.06, 0], s:[0.5, 0.02, 516], c:white, o });
+  // огни полосы, рулёжки и подхода
+  for (let z = -258; z <= 258; z += 12) for (const sx of [-1, 1]) addLight(rx + sx*15.6, 0.45, z, [1, 0.95, 0.75], 0.9);
+  for (let k = -3; k <= 3; k++){ addLight(rx + k*4, 0.45, -261, [1, 0.25, 0.2], 1.0); addLight(rx + k*4, 0.45, 261, [0.3, 1, 0.45], 1.0); }
+  for (let z = 270; z <= 360; z += 10) addLight(rx, 0.6, z, [1, 1, 1], 1.1);
+  for (let z = -236; z <= 236; z += 14) for (const sx of [-1, 1]) addLight(x0 + 118 + sx*6.4, 0.35, z, [0.3, 0.55, 1], 0.7);
+  // диспетчерская вышка
+  const vx = x0 + 28, vz = 84;
+  A.body.push({ p:[vx, 0, vz], s:[12, 4, 12], c:0xe3e7ef, o });
+  A.cyl.push({ p:[vx, 4, vz], s:[2.6, 26, 2.6], c:0xe9edf4 });
+  A.frus.push({ p:[vx, 30, vz], s:[5.2, 1.4, 5.2], c:0x2a3a6a });
+  A.cyl.push({ p:[vx, 31.4, vz], s:[5.6, 4.2, 5.6], c:0x7fb2e6 });
+  A.cyl.push({ p:[vx, 35.6, vz], s:[6.2, 0.7, 6.2], c:0x2a3a6a });
+  A.cone.push({ p:[vx, 36.3, vz], s:[5.4, 1.6, 5.4], c:0xf3f7ff });
+  A.body.push({ p:[vx, 37.6, vz], s:[0.2, 5, 0.2], c:0x7c8496, o });
+  for (let i = 0; i < 24; i++){ const a = i/24*Math.PI*2; addLight(vx + Math.cos(a)*5.75, 33.4, vz + Math.sin(a)*5.75, [0.75, 0.9, 1], 0.6); }
+  gar.pos.push(vx, 42.8, vz); gar.aColor.push(1, 0.2, 0.2); gar.aPhase.push(0.3); gar.aSize.push(1.4);
+  // ангары
+  for (const [hx, hz] of [[x0 + 74, -128], [x0 + 74, 128]]){
+    A.body.push({ p:[hx, 0, hz], s:[32, 11, 26], c:0xb9c0cc, o });
+    A.roof.push({ p:[hx, 11, hz], s:[32.6, 4.2, 26.6], c:0x8d93a3, o });
+    A.snow.push({ p:[hx, 11.25, hz], s:[32.8, 4.1, 24.2], o });
+    A.body.push({ p:[hx + 16.06, 0, hz], s:[0.12, 9, 20], c:0x5b6478, o });
+  }
+  // ёлки вокруг
+  for (let i = 0; i < 60; i++){ const z = -290 + r()*580, x = x0 + 186 + r()*14; addTree(x, z, 0.8 + r()*0.6); }
+  for (let i = 0; i < 26; i++){ const z = (r() < 0.5 ? -1 : 1)*(150 + r()*130), x = x0 + 4 + r()*90; if (Math.abs(z - 128) < 20 || Math.abs(z + 128) < 20) continue; addTree(x, z, 0.7 + r()*0.5); }
+  AIR.plane = makeAirPlane(); city.add(AIR.plane); updateAirPlane(0);
+}
+
+// секретное здание: пока огромный подарок под охраной; на 65 000 жителях — Дом Санта Клауса
+function qSign(bg){
+  return lazyBoard(new THREE.PlaneGeometry(7, 7), 256, 256, (x, W, H) => {
+    x.fillStyle = bg; x.fillRect(0, 0, W, H);
+    x.strokeStyle = '#ffd36a'; x.lineWidth = 14; x.strokeRect(14, 14, W - 28, H - 28);
+    x.fillStyle = '#ffd36a'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = '900 190px Manrope, Arial, sans-serif'; x.fillText('?', W/2, H/2 + 12);
+  });
+}
+function buildSanta(A, gar, smk, addLight, addLamp, addTree){
+  const sx = SANTA.x, sz = SANTA.z, o = SANTA_O, r = rng(6501), red = 0xc8302b, gold = 0xe9b649, white = 0xf4f6fb;
+  // заборчик с огнями и фонари
+  const FX = 34, FZ = 30;
+  for (let x = -FX; x <= FX; x += 4) for (const zz of [-FZ, FZ]) if (!(zz === FZ && Math.abs(x) < 5)) A.body.push({ p:[sx + x, 0, sz + zz], s:[0.35, 1.6, 0.35], c: (x/4) % 2 ? red : white, o });
+  for (let z = -FZ + 4; z < FZ; z += 4) for (const xx of [-FX, FX]) A.body.push({ p:[sx + xx, 0, sz + z], s:[0.35, 1.6, 0.35], c: (z/4) % 2 ? red : white, o });
+  for (const zz of [-FZ, FZ]) for (const [a, b] of zz === FZ ? [[-FX, -4], [4, FX]] : [[-FX, FX]]) A.body.push({ p:[sx + (a + b)/2, 1.1, sz + zz], s:[b - a, 0.18, 0.18], c:white, o });
+  for (const xx of [-FX, FX]) A.body.push({ p:[sx + xx, 1.1, sz], s:[0.18, 0.18, 2*FZ], c:white, o });
+  lampLights(gar, sx - FX, sx - 4, 1.55, sz + FZ + 0.1, 0.18, LIGHTS_MULTI, 61);
+  lampLights(gar, sx + 4, sx + FX, 1.55, sz + FZ + 0.1, 0.18, LIGHTS_MULTI, 62);
+  for (const [lx, lz] of [[-FX - 2, FZ + 2], [FX + 2, FZ + 2], [-FX - 2, -FZ - 2], [FX + 2, -FZ - 2], [-6, FZ + 3], [6, FZ + 3]]) addLamp(sx + lx, sz + lz, 5.2);
+  // ворота-леденцы
+  for (const gx of [-4.6, 4.6]){
+    for (let k = 0; k < 8; k++) A.cyl.push({ p:[sx + gx, k*0.8, sz + FZ], s:[0.5, 0.8, 0.5], c: k % 2 ? white : red });
+    A.sph.push({ p:[sx + gx, 6.6, sz + FZ], s:[0.75, 0.75, 0.75], c:gold });
+  }
+  for (const [tx, tz] of [[-44, -20], [-46, 10], [-40, 38], [44, -18], [46, 14], [40, 40], [-20, -42], [18, -44], [0, -46], [-30, -38], [30, -38]]) addTree(sx + tx, sz + tz, 1 + r()*0.7);
+  if (!SANTA.open){
+    // огромный подарок с бантом и знаками вопроса
+    A.body.push({ p:[sx, 0, sz], s:[24, 20, 24], c:red, o });
+    A.body.push({ p:[sx, 0, sz], s:[4.2, 20.25, 24.25], c:gold, o });
+    A.body.push({ p:[sx, 0, sz], s:[24.25, 20.25, 4.2], c:gold, o });
+    A.sph.push({ p:[sx, 20.4, sz], s:[2.2, 1.6, 2.2], c:gold });
+    for (const k of [-1, 1]) A.torus.push({ p:[sx + k*3.6, 22.2, sz], s:[3.2, 2.6, 3.2], q: qAxis(AX_Z, k*0.55), c:gold });
+    for (const [px, pz, ry] of [[0, 12.22, 0], [0, -12.22, Math.PI], [12.22, 0, Math.PI/2], [-12.22, 0, -Math.PI/2]]){   // поверх ленты (она до 12.13)
+      const q = qSign('#c8302b'); q.position.set(sx + px, 12.4, sz + pz); q.rotation.y = ry; lmDetail(q, sx, sz);
+    }
+    for (let i = 0; i <= 60; i++){ const t = i/60, c = LIGHTS_MULTI[i % 5]; for (const zz of [12.2, -12.2]) addLight(sx - 12 + t*24, 20.1, sz + zz, c, 0.5); addLight(sx + 12.2, 20.1, sz - 12 + t*24, c, 0.5); addLight(sx - 12.2, 20.1, sz - 12 + t*24, c, 0.5); }
+    A.sph.push({ p:[sx - 14, 0, sz + 10], s:[4, 2, 3], c:0xf6f9ff }); A.sph.push({ p:[sx + 15, 0, sz - 9], s:[5, 2.4, 3.5], c:0xf6f9ff });
+    const sg = makeSign(SECRET.name, `откроется на ${fmtNum(SECRET.at)} жителях`, new THREE.Vector3(sx + 11, 0, sz + FZ + 4), -0.15); lmDetail(sg, sx, sz);
+    return;
+  }
+  // Дом Санта Клауса: бревенчатый дом с красной крышей, крыльцо, мастерская, сани с оленями
+  const hz = sz - 6, log = 0x8a5a3b, logD = 0x6e4529;
+  A.body.push({ p:[sx, 0, hz], s:[30, 12, 20], c:log, o });
+  for (let y = 1.2; y < 12; y += 1.25) A.body.push({ p:[sx, y, hz], s:[30.25, 0.2, 20.25], c:logD, o });
+  A.roof.push({ p:[sx, 12, hz], s:[34, 9, 24], c:0xb3262b, o });
+  A.snow.push({ p:[sx, 15.9, hz], s:[34.4, 5.5, 14.6], o });
+  A.body.push({ p:[sx + 9, 13, hz - 4], s:[3, 9.5, 3], c:0x9a4a3a, o }); A.cap.push({ p:[sx + 9, 22.5, hz - 4], s:[3.4, 0.4, 3.4] });
+  for (let i = 0; i < 6; i++){ smk.pos.push(sx + 9, 23.2, hz - 4); smk.aPhase.push(i/6); }
+  const fz = hz + 10;
+  A.body.push({ p:[sx, 0, fz + 0.2], s:[4, 6.5, 0.4], c:0x2f6b45, o });
+  A.sph.push({ p:[sx + 1.3, 3.2, fz + 0.5], s:[0.25, 0.25, 0.25], c:gold });
+  for (const wx of [-10, -5.5, 5.5, 10]){ A.win.push({ p:[sx + wx, 4.6, fz + 0.06], s:[3, 3.2, 0.12], c:[1, 0.78, 0.42] }); A.body.push({ p:[sx + wx, 2.9, fz + 0.2], s:[3.6, 0.35, 0.5], c:white, o }); }
+  for (const wx of [-7, 0, 7]) A.win.push({ p:[sx + wx, 9.2, fz + 0.06], s:[2.4, 2.2, 0.12], c:[1, 0.85, 0.5] });
+  A.body.push({ p:[sx, 0, fz + 3], s:[16, 0.6, 6], c:0x7a4a2b, o });
+  for (const px of [-7, 7]) for (let k = 0; k < 9; k++) A.cyl.push({ p:[sx + px, 0.6 + k*0.75, fz + 5.4], s:[0.4, 0.75, 0.4], c: k % 2 ? white : red });
+  A.body.push({ p:[sx, 7.3, fz + 3], s:[17, 0.5, 6.2], c:0xb3262b, o }); A.cap.push({ p:[sx, 7.8, fz + 3], s:[16.8, 0.25, 6]});
+  const sg = lmSign('ДОМ САНТА КЛАУСА', '#b3262b', '#ffffff', 15, 2.2); sg.position.set(sx, 8.95, fz + 6.15); lmDetail(sg, sx, sz);
+  lampLights(gar, sx - 15, sx + 15, 11.8, fz + 0.3, 0.3, LIGHTS_MULTI, 63);
+  lampLights(gar, sx - 8.4, sx + 8.4, 7.2, fz + 6.25, 0.2, LIGHTS_WARM, 64);
+  // мастерская эльфов
+  const wx0 = sx - 24, wz0 = sz - 10;
+  A.body.push({ p:[wx0, 0, wz0], s:[13, 8, 14], c:0x2f6b45, o });
+  A.roof.push({ p:[wx0, 8, wz0], s:[14.5, 5, 15.5], c:0xb3262b, o }); A.snow.push({ p:[wx0, 8.3, wz0], s:[14.8, 4.8, 13.4], o });
+  for (const zz of [-3, 3]) A.win.push({ p:[wx0 + 6.56, 3.8, wz0 + zz], s:[0.12, 2.6, 2.6], c:[1, 0.85, 0.5] });
+  const ws = lmSign('МАСТЕРСКАЯ', '#2f6b45', '#ffd36a', 8, 1.3); ws.position.set(wx0 + 6.62, 6.4, wz0); ws.rotation.y = Math.PI/2; lmDetail(ws, wx0, wz0);
+  // большая ёлка со звездой
+  addTree(sx + 22, sz - 12, 3.2);
+  A.gold.push({ p:[sx + 22, 15.5, sz - 12], s:[0.9, 0.9, 0.9] });
+  for (let i = 0; i < 70; i++){ const t = i/70, a = t*Math.PI*9, rr = 4.6*(1 - t) + 0.4; addLight(sx + 22 + Math.cos(a)*rr, 1.2 + t*13, sz - 12 + Math.sin(a)*rr, LIGHTS_MULTI[i % 5], 0.5); }
+  // сани и олени
+  const sx2 = sx + 18, sz2 = sz + 16;
+  A.body.push({ p:[sx2, 0.8, sz2], s:[6, 1.8, 3.2], c:red, o }); A.body.push({ p:[sx2 + 2.4, 0.8, sz2], s:[1.4, 3.6, 3.2], c:red, o });
+  for (const zz of [-1.3, 1.3]) A.body.push({ p:[sx2 - 0.4, 0, sz2 + zz], s:[7.6, 0.3, 0.3], c:gold, o });
+  A.sph.push({ p:[sx2 + 0.6, 3.2, sz2], s:[1.7, 1.6, 1.4], c:0x8a5a3b });
+  for (const [bx, bz, c] of [[-1.8, -0.6, 0x2f6fd6], [-1.2, 0.8, 0xe9b649], [-2.2, 0.6, 0x2f8a4a]]) A.body.push({ p:[sx2 + bx, 2.6, sz2 + bz], s:[1, 1, 1], c, o });
+  [[sx2 - 7.5, sz2 - 1.5], [sx2 - 7.5, sz2 + 1.5], [sx2 - 12, sz2 - 1.5], [sx2 - 12, sz2 + 1.5]].forEach(([dx, dz], i) => {
+    const fur = 0x9a6a3e, dark = 0x4a2f1c, horn = 0xeadbb8;
+    A.sph.push({ p:[dx, 2.45, dz], s:[1.55, 0.78, 0.62], c:fur });                       // туловище
+    A.sph.push({ p:[dx + 1.45, 2.75, dz], s:[0.35, 0.3, 0.3], c:0xf4efe6 });              // хвостик
+    for (const lx of [-0.95, 0.95]) for (const lz of [-0.32, 0.32]) A.body.push({ p:[dx + lx, 0, dz + lz], s:[0.2, 2.0, 0.2], c:dark, o });
+    beam(A, dx - 1.35, 3.25, dz, 1.5, 0.55, 0.42, 0.42, fur, o);                           // шея вперёд-вверх
+    A.sph.push({ p:[dx - 2.05, 4.05, dz], s:[0.62, 0.42, 0.4], c:fur });                  // голова
+    A.sph.push({ p:[dx - 2.6, 3.92, dz], s:[0.22, 0.2, 0.2], c: i === 2 ? 0xff2a1f : dark });   // нос, у первого оленя — красный
+    if (i === 2){ gar.pos.push(dx - 2.75, 3.92, dz); gar.aColor.push(1, 0.15, 0.1); gar.aPhase.push(0.5); gar.aSize.push(0.9); }
+    for (const az of [-1, 1]){                                                              // рога с отростками
+      A.body.push({ p:[dx - 1.9, 4.35, dz + az*0.22], s:[0.12, 1.2, 0.12], q: qAxis(AX_X, -az*0.45), c:horn, o });
+      A.body.push({ p:[dx - 1.9, 4.95, dz + az*0.5], s:[0.1, 0.7, 0.1], q: qAxis(AX_Z, 0.6), c:horn, o });
+      A.body.push({ p:[dx - 1.9, 4.75, dz + az*0.42], s:[0.1, 0.55, 0.1], q: qAxis(AX_Z, -0.7), c:horn, o });
+    }
+  });
+  // горы подарков
+  const GC = [0xd8352f, 0x2f6fd6, 0xe9b649, 0x2f8a4a, 0xb99ad1, 0xff7eb6];
+  for (let i = 0; i < 22; i++){ const a = r()*Math.PI*2, d = 3 + r()*5, gx = sx - 14 + Math.cos(a)*d, gz = sz + 16 + Math.sin(a)*d, s2 = 0.8 + r()*1.4;
+    A.body.push({ p:[gx, 0, gz], s:[s2, s2, s2], c:GC[i % GC.length], o }); A.body.push({ p:[gx, s2, gz], s:[s2*0.25, 0.12, s2*1.02], c:gold, o }); }
+  const sg2 = makeSign(SECRET.openName, 'Северный полюс Снежного города', new THREE.Vector3(sx + 11, 0, sz + FZ + 4), -0.15); lmDetail(sg2, sx, sz);
+}
+
 function lmDetail(obj, x, z){ chunkGroup('mid', DETAIL_CHUNK, x, z).add(obj); }
 const lmWin = r => [0.1 + r()*0.55, r(), r()*0.6];
 function lmLamps(cx, cz, addLamp){ for (const ox of [-9, 9]) addLamp(cx + ox, cz + HALF_BLOCK + 0.4); }
@@ -3287,8 +3554,8 @@ function updateCamera(dt){
   }
   controls.update();
   // не улетать за город
-  const lim = cityHalf + 30, tg = controls.target;
-  const cx = clamp(tg.x, -lim, lim) - tg.x, cz = clamp(tg.z, -lim, lim) - tg.z;
+  const tg = controls.target;
+  const cx = clamp(tg.x, WORLD.x0, WORLD.x1) - tg.x, cz = clamp(tg.z, WORLD.z0, WORLD.z1) - tg.z;
   if (cx || cz){ tg.x += cx; tg.z += cz; camera.position.x += cx; camera.position.z += cz; }
   camLook.copy(tg);
 }
@@ -3317,13 +3584,12 @@ function selectHouse(h, flyThere){
     b.append(sp, em); b.addEventListener('click', () => selectHouse(o, true)); nb.appendChild(b);
   }
   if (!any){ const p = document.createElement('span'); p.className = 'note'; p.textContent = 'Соседи появятся с новыми подписчиками.'; nb.appendChild(p); }
-  $('studio').hidden = true; $('places').hidden = true; $('placesBtn').classList.remove('on'); $('card').hidden = false; document.body.classList.add('sheet-open'); $('studioBtn').classList.remove('on');
+  for (const id of ['card','studio','places','mapSheet']) $(id).hidden = true; for (const id of ['studioBtn','placesBtn','mapBtn']) $(id).classList.remove('on'); $('card').hidden = false; document.body.classList.add('sheet-open');
   if (flyThere){ const v = houseView(h); flyTo(v.pos, v.target); }
   pickLabels();
 }
 function closeSheets(keepSelection){
-  $('card').hidden = true; $('studio').hidden = true; $('places').hidden = true; document.body.classList.remove('sheet-open');
-  $('studioBtn').classList.remove('on'); $('placesBtn').classList.remove('on');
+  for (const id of ['card','studio','places','mapSheet']) $(id).hidden = true; for (const id of ['studioBtn','placesBtn','mapBtn']) $(id).classList.remove('on'); document.body.classList.remove('sheet-open');
   if (!keepSelection){ selected = null; if (selRing) selRing.visible = false; labels.forEach(L => L.el.classList.remove('sel')); }
 }
 
@@ -3341,6 +3607,8 @@ canvas.addEventListener('pointerup', e => {
   const ow = hit ? hit.object.userData.owners[hit.instanceId] : null;
   if (ow === HALL_O) showHall();
   else if (ow === PARK_O) showPark();
+  else if (ow === AIR_O) showAirport();
+  else if (ow === SANTA_O) showSanta();
   else if (ow !== null && ow < 0) goToPlace(landmarks[-ow - 1]);
   else if (hit) selectHouse(houses[ow], true);
   else if (!$('card').hidden){ closeSheets(); }
@@ -3358,17 +3626,20 @@ $('searchForm').addEventListener('submit', e => {
   const num = q.replace(/^№\s*/, '');
   if (/^\d+$/.test(num)) h = houses.find(x => x.n === +num);
   if (!h) h = houses.find(x => x.name && x.name.toLowerCase() === q);
+  // «школа 54», «аэропорт», «больница 3» — это места, а не ники
+  const looksLikePlace = pnorm(q).split(/\s+/).some(t => t.length >= 3 && !/^\d/.test(t) && PLACE_ALIASES.some(a => a.startsWith(t)));
+  if (!h && looksLikePlace){ const pl = searchPlaces(q, collectPlaces()); if (pl.length){ $('toast').hidden = true; pl[0].go(); return; } }
   if (!h){ const pre = houses.filter(x => x.name && x.name.toLowerCase().startsWith(q)); if (pre.length === 1) h = pre[0]; }
+  if (!h && q.length >= 4){ const pl = searchPlaces(q, collectPlaces()); if (pl.length){ $('toast').hidden = true; pl[0].go(); return; } }   // например, название района
   if (h){ $('toast').hidden = true; selectHouse(h, true); }
   else toast(`Жителя «${q}» пока нет. Если ты подписался недавно, твой дом появится после следующего обновления города.`);
 });
 
 /* ============================== кнопки ============================== */
-$('homeBtn').addEventListener('click', () => { closeSheets(); const v = homeView(); flyTo(v.pos, v.target); });
+function goHome(){ closeSheets(); const v = homeView(); flyTo(v.pos, v.target); }
 $('cineBtn').addEventListener('click', () => startCinema(null));
 
 /* ---------- места города: школы, университеты, ТЦ ---------- */
-const placeIdx = {};
 function goToDistrict(D){
   closeSheets();
   const r = D.key === 'c' ? 120 : 160;
@@ -3390,6 +3661,14 @@ function showHall(){
   closeSheets(); flyTo(new THREE.Vector3(-P + 14, 22, 44), new THREE.Vector3(-P, 7, 0));
   toast('Мэрия Снежного города · мэр — ' + MAYOR);
 }
+function showAirport(){
+  closeSheets(); flyTo(new THREE.Vector3(AIR.x0 - 30, 70, 120), new THREE.Vector3(AIR.x0 + 70, 2, 0), 2.2);
+  toast(AIR_NAME + ': терминал, вышка, ангары и самолёты. Каждые полторы минуты один садится и взлетает');
+}
+function showSanta(){
+  closeSheets(); flyTo(new THREE.Vector3(SANTA.x + 34, 34, SANTA.z + 64), new THREE.Vector3(SANTA.x, 6, SANTA.z), 2.2);
+  toast(SANTA.open ? SECRET.openName + ' — Северный полюс Снежного города' : `${SECRET.name}. Что внутри — узнаем на ${fmtNum(SECRET.at)} жителях. Осталось ${fmtNum(SECRET.at - total)}`);
+}
 function showPark(){
   closeSheets(); flyTo(new THREE.Vector3(18, 24, P + 46), new THREE.Vector3(0, 3, P));
   toast(total >= 100 ? 'Снежный парк: колесо обозрения, горка, беседка и ярмарка' : 'Снежный парк откроется на 100 жителях');
@@ -3407,33 +3686,91 @@ function placeRow(icon, title, sub, onClick){
   const e = document.createElement('em'); e.textContent = sub;
   b.append(i, t, e); b.addEventListener('click', onClick); return b;
 }
+/* Каталог мест: поиск «школа 54», вкладки по видам и полный список по номерам — без перебора по одному.
+   Каждое место: { icon, name, sub, kind, num, words, go } */
+const PLACE_KINDS = [['school','🏫','Школы'], ['hospital','🏥','Больницы'], ['university','🎓','Университеты'], ['mall','🛍️','ТЦ'], ['district','📍','Районы']];
+const KIND_WORDS = { school:'школа школы школу шк', hospital:'больница больницы больницу поликлиника', university:'университет университеты универ вуз институт',
+  mall:'тц торговый центр магазин молл', district:'район районы', airport:'аэропорт самолет самолеты аэро', secret:'секрет секретное здание тайна санта клаус дед мороз подарок',
+  hall:'мэрия мэр администрация', rink:'каток коньки лед', park:'парк колесо обозрения ярмарка горка', tree:'елка центр площадь', site:'стройка строится' };
+const PLACE_ALIASES = Object.values(KIND_WORDS).join(' ').split(' ');
+const pnorm = q => q.toLowerCase().replace(/ё/g, 'е').replace(/№/g, ' ').replace(/(\d)([^\d\s])|([^\d\s])(\d)/g, '$1$3 $2$4').replace(/[«»"'.,()\-—:!?]/g, ' ').trim();
+let PLACES = [], placeCat = 'all', placeShown = 60;
+function collectPlaces(){
+  const out = [], add = p => { p.words = pnorm([p.name, p.sub || '', KIND_WORDS[p.kind] || '', p.extra || ''].join(' ')).split(/\s+/); out.push(p); };
+  add({ icon:'🎄', name:'Ёлка', sub:'центр города', kind:'tree', go:goHome });
+  add({ icon:'🏛️', name:'Мэрия', sub:'мэр ' + MAYOR, kind:'hall', go:showHall });
+  add({ icon:'⛸️', name:'Каток', sub: total >= 25 ? 'у ёлки' : 'откроется на 25 жителях', kind:'rink', go:() => { closeSheets(); flyTo(new THREE.Vector3(P + 10, 30, 46), new THREE.Vector3(P, 2, 0)); } });
+  add({ icon:'🎡', name:'Снежный парк', sub: total >= 100 ? 'колесо обозрения, горка, ярмарка' : 'откроется на 100 жителях', kind:'park', go:showPark });
+  add({ icon:'✈️', name:AIR_NAME, sub:'за восточной окраиной · рейсы на Северный полюс', kind:'airport', go:showAirport });
+  if (SANTA.open) add({ icon:'🎅', name:SECRET.openName, sub:'Северный полюс, за северной окраиной', kind:'secret', go:showSanta });
+  else add({ icon:'🎁', name:SECRET.name, sub:`откроется на ${fmtNum(SECRET.at)} · ещё ${fmtNum(SECRET.at - total)}`, kind:'secret', secret:true, go:showSanta });
+  for (const L of [...landmarks].sort((a, b) => a.kind.localeCompare(b.kind) || a.num - b.num)){
+    const D = districtAt(L.bx*P, L.bz*P), icon = PLACE_KINDS.find(k => k[0] === L.kind)[1];
+    add({ icon: L.open ? icon : '🏗️', name:L.name, num:L.num, kind:L.kind, site:!L.open,
+          sub: L.open ? (D ? D.name : 'окраина') : `стройка · ещё ${fmtNum(Math.max(1, L.at - total))}`, extra: L.open ? '' : KIND_WORDS.site, go:() => goToPlace(L) });
+  }
+  for (const D of [...districts.values()].sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz)))
+    add({ icon:'📍', name:D.name, sub: fmtNum(D.houses.length) + ' ' + plural(D.houses.length, ['житель','жителя','жителей']), kind:'district', go:() => goToDistrict(D) });
+  return out;
+}
+// поиск: каждое слово должно быть началом какого-то слова места, число — номером места
+function searchPlaces(q, list = PLACES){
+  const toks = pnorm(q).split(/\s+/).filter(Boolean); if (!toks.length) return [];
+  const res = [];
+  for (const p of list){
+    let ok = true, score = 0;
+    for (const t of toks){
+      if (/^\d+$/.test(t)){ if (p.num === +t) score += 10; else if (p.words.includes(t)) score += 4; else { ok = false; break; } }
+      else { const w = p.words.find(w => w.startsWith(t)); if (!w){ ok = false; break; } score += w === t ? 3 : 1; if (pnorm(p.name).startsWith(t)) score += 2; }
+    }
+    if (ok) res.push([score, p]);
+  }
+  return res.sort((a, b) => b[0] - a[0] || (a[1].site - b[1].site) || ((a[1].num || 0) - (b[1].num || 0))).map(r => r[1]);
+}
+function placeRow(p){
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'prow' + (p.secret ? ' secret' : '');
+  const i = document.createElement('i'); i.textContent = p.icon;
+  const t = document.createElement('span'); t.textContent = p.name;
+  if (p.sub){ const sm = document.createElement('small'); sm.textContent = p.sub; t.appendChild(sm); }
+  b.append(i, t); b.addEventListener('click', () => { $('pq').blur(); p.go(); }); return b;
+}
 function renderPlaces(){
-  const rows = [];
-  for (const [kind, icon] of [['school','🏫'], ['hospital','🏥'], ['university','🎓'], ['mall','🛍️']]){
-    const list = landmarks.filter(L => L.open && L.kind === kind);
-    if (!list.length) continue;
-    rows.push(placeRow(icon, LM_TITLE[kind], fmtNum(list.length), () => {
-      const i = placeIdx[kind] = ((placeIdx[kind] ?? -1) + 1) % list.length;
-      goToPlace(list[i]);
-      if (list.length > 1) toast(`${list[i].name} · ${i + 1} из ${list.length}. Нажми ещё раз, покажу следующую`);
-    }));
+  const q = $('pq').value.trim(), rows = [];
+  let list;
+  if (q) list = searchPlaces(q, placeCat === 'all' ? PLACES : PLACES.filter(p => p.kind === placeCat));
+  else if (placeCat === 'all'){
+    list = PLACES.filter(p => !PLACE_KINDS.some(k => k[0] === p.kind) || (p.site && PLACES.filter(x => x.site)[0] === p));
+    // вместо длинных списков — строка на каждый вид: нажал, и открылся весь список по номерам
+    for (const [kind, icon, title] of PLACE_KINDS){
+      const n = PLACES.filter(p => p.kind === kind && !p.site).length; if (!n) continue;
+      list.push({ icon, name:title, sub: kind === 'district' ? 'все районы города' : 'все по номерам, от №1', kind:'cat', count:n, go:() => setPlaceCat(kind) });
+    }
+  } else list = PLACES.filter(p => p.kind === placeCat);
+  for (const p of list.slice(0, placeShown)){
+    const r = placeRow(p);
+    if (p.count){ const e = document.createElement('em'); e.textContent = fmtNum(p.count) + ' ›'; r.appendChild(e); }
+    rows.push(r);
   }
-  rows.unshift(placeRow('🏛️', 'Мэрия', 'мэр ' + MAYOR, showHall));
-  if (total >= 25) rows.push(placeRow('⛸️', 'Каток', '', () => { closeSheets(); flyTo(new THREE.Vector3(P + 10, 30, 46), new THREE.Vector3(P, 2, 0)); }));
-  if (total >= 100) rows.push(placeRow('🎡', 'Снежный парк', '', showPark));
-  const site = landmarks.find(L => !L.open);
-  if (site) rows.push(placeRow('🏗️', 'Стройка: ' + site.name, 'ещё ' + fmtNum(Math.max(1, site.at - total)), () => goToPlace(site)));
-  // районы
-  const grid = document.createElement('div'); grid.className = 'dgrid';
-  const h4 = document.createElement('h4'); h4.textContent = 'Районы · ' + districts.size; grid.appendChild(h4);
-  for (const D of [...districts.values()].sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))){
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'dchip';
-    const sm = document.createElement('small'); sm.textContent = fmtNum(D.houses.length) + ' ' + plural(D.houses.length, ['житель','жителя','жителей']);
-    b.append(D.name, sm); b.addEventListener('click', () => goToDistrict(D)); grid.appendChild(b);
-  }
-  rows.push(grid);
+  if (!list.length){ const e = document.createElement('p'); e.className = 'pempty'; e.textContent = /^\d+$/.test(q) ? `Места с номером ${q} пока нет.` : `Ничего не нашлось по «${q}». Попробуй «школа 12», «больница», «ТЦ» или название района.`; rows.push(e); }
+  if (list.length > placeShown){ const m = document.createElement('button'); m.type = 'button'; m.className = 'pmore'; m.textContent = `Показать ещё ${fmtNum(list.length - placeShown)}`; m.addEventListener('click', () => { placeShown += 120; renderPlaces(); }); rows.push(m); }
   $('pList').replaceChildren(...rows);
 }
+function renderPlaceCats(){
+  const cats = [['all', 'Все', 0], ...PLACE_KINDS.map(([k, , t]) => [k, t, PLACES.filter(p => p.kind === k).length]).filter(c => c[2])];
+  $('pCats').replaceChildren(...cats.map(([k, t, n]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(k === placeCat));
+    b.append(t); if (n){ const e = document.createElement('em'); e.textContent = n; b.appendChild(e); }
+    b.addEventListener('click', () => setPlaceCat(k)); return b;
+  }));
+}
+function setPlaceCat(k){ placeCat = k; placeShown = 60; renderPlaceCats(); renderPlaces(); $('places').querySelector('.card-body').scrollTop = 0; }
+function openPlaces(){
+  PLACES = collectPlaces(); placeShown = 60;
+  $('pCount').textContent = fmtNum(PLACES.filter(p => p.kind !== 'district').length) + ' мест';
+  renderPlaceCats(); renderPlaces();
+}
+$('pq').addEventListener('input', () => { placeShown = 60; renderPlaces(); });
+$('pq').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); const first = $('pList').querySelector('.prow'); if (first) first.click(); } });
 
 /* ---------- карта города: вид сверху, тап — полёт туда ---------- */
 const DIST_COL = ['#f3b5a8','#a9d3c3','#b8c4ef','#f2d394','#d6b6e6','#9fd0e6','#f0b9cf','#c5dca0'];
@@ -3441,7 +3778,7 @@ const MAP = { base:null, baseN:-1, B:100, zoom:1, cx:0, cz:0, ptrs:new Map(), mo
 function mapBase(){
   if (MAP.base && MAP.baseN === houses.length) return MAP.base;
   const N = isCoarse ? 1400 : 2048, c = MAP.base || document.createElement('canvas'); c.width = c.height = N;
-  const g = c.getContext('2d'), B = MAP.B = cityHalf + 14, k = N/(2*B);
+  const g = c.getContext('2d'), B = MAP.B = Math.max(cityHalf + 14, AIR.x1 + 14, -SANTA.z + 54), k = N/(2*B);
   g.fillStyle = '#e9eef6'; g.fillRect(0, 0, N, N);
   const keys = [...districts.keys()].sort(), col = new Map(keys.map((key, i) => [key, key === 'c' ? '#f6d77e' : DIST_COL[i % DIST_COL.length]]));
   // кварталы районов светлой подложкой, дома — точками цвета района
@@ -3456,6 +3793,11 @@ function mapBase(){
   }
   // площадь, парк, мэрия
   g.fillStyle = '#ffffff'; g.fillRect((-HALF_BLOCK + B)*k, (-HALF_BLOCK + B)*k, 2*HALF_BLOCK*k, 2*HALF_BLOCK*k);
+  // аэропорт: перрон, рулёжка, полоса и терминал; секретное здание — участок за забором
+  const rect = (x0, z0, x1, z1, c) => { g.fillStyle = c; g.fillRect((x0 + B)*k, (z0 + B)*k, (x1 - x0)*k, (z1 - z0)*k); };
+  rect(AIR.x0 + 40, -95, AIR.x0 + 112, 95, '#cfd4de'); rect(AIR.x0 + 112, -235, AIR.x0 + 124, 235, '#7d8496');
+  rect(AIR.rx - 15, -260, AIR.rx + 15, 260, '#596075'); rect(AIR.x0 + 12, -60, AIR.x0 + 40, 60, '#8fa3c9');
+  rect(SANTA.x - 34, SANTA.z - 30, SANTA.x + 34, SANTA.z + 30, SANTA.open ? '#f2c1bd' : '#f6e2b0');
   MAP.col = col; MAP.base = c; MAP.baseN = houses.length; return c;
 }
 function mapSize(){ const cv = $('mapCv'), r = cv.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
@@ -3464,7 +3806,7 @@ function mapSize(){ const cv = $('mapCv'), r = cv.getBoundingClientRect(), dpr =
 function mapXf(){ const { W, H, dpr } = mapSize(), sc = Math.min(W, H)/(2*MAP.B)*MAP.zoom; return { W, H, dpr, sc, ox: W/2 - MAP.cx*sc, oz: H/2 - MAP.cz*sc }; }
 function clampMap(){ const lim = MAP.B*(1 - 1/MAP.zoom); MAP.cx = clamp(MAP.cx, -lim, lim); MAP.cz = clamp(MAP.cz, -lim, lim); }
 function drawMap(){
-  if ($('places').hidden) return;
+  if ($('mapSheet').hidden) return;
   const cv = $('mapCv'), g = cv.getContext('2d'), base = mapBase(), T = mapXf(), { W, H, sc, ox, oz, dpr } = T, B = MAP.B;
   g.setTransform(1,0,0,1,0,0); g.fillStyle = '#e9eef6'; g.fillRect(0, 0, W, H);
   g.imageSmoothingEnabled = true; g.drawImage(base, ox - B*sc, oz - B*sc, 2*B*sc, 2*B*sc);
@@ -3475,6 +3817,7 @@ function drawMap(){
   icon('🎄', 0, 0, isz + 3); icon('🏛️', -P, 0, isz);
   if (total >= 25) icon('⛸️', P, 0, isz);
   if (total >= 100) icon('🎡', 0, P, isz);
+  icon('✈️', AIR.x0 + 70, 0, isz + 4); icon(SANTA.open ? '🎅' : '🎁', SANTA.x, SANTA.z, isz + 4);
   const EM = { school:'🏫', hospital:'🏥', university:'🎓', mall:'🛍️' };
   for (const L of landmarks) if ((L.open && MAP.zoom > 1.4) || MAP.zoom > 2.4) icon(L.open ? EM[L.kind] || '📍' : '🏗️', L.bx*P, L.bz*P, isz);
   // названия районов: крупные первыми, без наложений
@@ -3511,7 +3854,7 @@ function mapZoom(f, cx, cy){
   clampMap(); drawMap();
 }
 function flyToPoint(x, z){
-  x = clamp(x, -cityHalf, cityHalf); z = clamp(z, -cityHalf, cityHalf);
+  x = clamp(x, WORLD.x0, WORLD.x1); z = clamp(z, WORLD.z0, WORLD.z1);
   const off = camera.position.clone().sub(controls.target); off.y = 0; if (off.lengthSq() < 1) off.set(0.5, 0, 1); off.normalize();
   const tg = new THREE.Vector3(x, 0, z), D = districtAt(x, z);
   closeSheets(true); flyTo(tg.clone().add(off.multiplyScalar(78)).setY(62), tg, 1.9);
@@ -3534,12 +3877,20 @@ function flyToPoint(x, z){
   });
   const up = e => {
     const had = MAP.ptrs.has(e.pointerId); MAP.ptrs.delete(e.pointerId);
-    if (had && e.type === 'pointerup' && !MAP.ptrs.size && MAP.moved < 8){ const w = mapWorld(e.clientX, e.clientY); flyToPoint(w.x, w.z); }
+    if (had && e.type === 'pointerup' && !MAP.ptrs.size && MAP.moved < 8){
+      const w = mapWorld(e.clientX, e.clientY), T = mapXf(), near = 22*T.dpr/T.sc;   // попал рядом со значком — летим к самому месту
+      const spots = [[0, 0, goHome], [-P, 0, showHall], [AIR.x0 + 70, 0, showAirport], [SANTA.x, SANTA.z, showSanta]];
+      if (total >= 100) spots.push([0, P, showPark]);
+      if (MAP.zoom > 1.4) for (const L of landmarks) if (L.open || MAP.zoom > 2.4) spots.push([L.bx*P, L.bz*P, () => goToPlace(L)]);
+      let best = null, bd = near; for (const sp of spots){ const d = Math.hypot(sp[0] - w.x, sp[1] - w.z); if (d < bd){ bd = d; best = sp; } }
+      if (best) best[2](); else flyToPoint(w.x, w.z);
+    }
   };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('wheel', e => { e.preventDefault(); mapZoom(e.deltaY < 0 ? 1.2 : 1/1.2, e.clientX, e.clientY); }, { passive:false });
   $('mapIn').addEventListener('click', () => mapZoom(1.5));
   $('mapOut').addEventListener('click', () => mapZoom(1/1.5));
+  $('mapHome').addEventListener('click', goHome);
   $('mapMe').addEventListener('click', () => { const t = controls.target; MAP.zoom = Math.max(MAP.zoom, 3); MAP.cx = t.x; MAP.cz = t.z; clampMap(); drawMap(); });
   addEventListener('resize', () => drawMap());
 }
@@ -3549,10 +3900,15 @@ function openMapAtCamera(){
   MAP.cx = t.x; MAP.cz = t.z; clampMap();
   requestAnimationFrame(drawMap);
 }
+$('mapBtn').addEventListener('click', () => {
+  const open = $('mapSheet').hidden; closeSheets(true);
+  if (open){ $('mapSheet').hidden = false; $('mapBtn').classList.add('on'); document.body.classList.add('sheet-open'); openMapAtCamera(); }
+});
 $('placesBtn').addEventListener('click', () => {
   const open = $('places').hidden; closeSheets(true);
-  if (open){ renderPlaces(); $('places').hidden = false; $('placesBtn').classList.add('on'); document.body.classList.add('sheet-open'); openMapAtCamera(); }
+  if (open){ openPlaces(); $('places').hidden = false; $('placesBtn').classList.add('on'); document.body.classList.add('sheet-open'); }
 });
+$('mClose').addEventListener('click', () => closeSheets(true));
 $('pClose').addEventListener('click', () => closeSheets(true));
 $('exitCine').addEventListener('click', stopCinema);
 $('cClose').addEventListener('click', () => closeSheets());
@@ -3585,6 +3941,7 @@ $('tgHQ').addEventListener('change', e => {
 $('unlock').addEventListener('click', () => {
   const nx = goals.find(u => u.at > total);
   const target = nx && nx.block ? nx : goals.filter(u => u.block && u.at <= total).pop();
+  if (nx && nx.go){ nx.go(); return; }
   if (target && target.block){ const [bx,bz] = target.block; flyTo(new THREE.Vector3(bx*P + 10, 30, bz*P + 46), new THREE.Vector3(bx*P, 2, bz*P)); }
   else if (nx) toast(`Место для «${nx.name}» появится, когда в городе будет ${fmtNum(nx.at)} ${plural(nx.at, ['житель','жителя','жителей'])}.`);
 });
@@ -3768,6 +4125,7 @@ function loop(now){
   if (bigStar){ bigStar.rotation.y += dt*0.6; }
   for (const sp of spinners) sp.rotation.y += dt*0.9;
   for (const w of wheels) spinWheel(w, dt);
+  updateAirPlane(now/1000);
   if (selRing && selRing.visible){ const k = 1 + Math.sin(clockT*3)*0.06; selRing.scale.x = selRing.scale.z = (Math.max(selected.w, selected.d)/9 + 0.6)*k; }
   if (renderer.shadowMap.enabled && (camLook.distanceToSquared(shadowAt) > 16 || ++shadowN >= 8)){ renderer.shadowMap.needsUpdate = true; shadowAt.copy(camLook); shadowN = 0; }
   boardFrame++; boardBudget = 2; if (frameN % 120 === 60) sweepBoards();
