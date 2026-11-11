@@ -2691,22 +2691,34 @@ function emitBasic(H, A, gar, smk, addTree){
 
 /* ---------- центральная площадь ---------- */
 let bigStar = null;
+// большая ёлка со звездой и спиралью огней; k = 4.4 — как на площади
+function bigTree(x, z, k, addLight, seed, lit, noStar){
+  const tree = new THREE.Mesh(GEO.tree, MAT.tree); tree.scale.set(k, k*1.05, k); tree.position.set(x, 0, z); tree.castShadow = true; tree.receiveShadow = true; city.add(tree);
+  const f = k/4.4, top = 4.6*k*1.05, r = rng(seed);
+  if (!noStar){ bigStar = new THREE.Mesh(new THREE.OctahedronGeometry(1.15*Math.max(f, 0.7)), MAT.star); bigStar.position.set(x, top + 0.9*f, z); city.add(bigStar); }
+  if (!lit) return;
+  const n = Math.round(360*f), sz = Math.max(0.45, 0.62*f);
+  for (let i=0;i<n;i++){
+    const t = i/n, y = 1.25*k + (top - 1.25*k - 1.2*f)*t, rad = (1.66*(1-t) + 0.14)*k + 0.15, a = t*Math.PI*2*8.5;
+    addLight(x + Math.cos(a)*rad, y, z + Math.sin(a)*rad, LIGHTS_MULTI[i % 5], sz, r());
+  }
+  for (let i=0;i<Math.round(44*f);i++){
+    const t = 0.05 + r()*0.85, y = 1.4*k + (top - 1.4*k - 1.5*f)*t, rad = (1.55*(1-t) + 0.1)*k, a = r()*Math.PI*2;
+    addLight(x + Math.cos(a)*rad, y, z + Math.sin(a)*rad, LIGHTS_MULTI[Math.floor(r()*5)], 1.25*Math.max(f, 0.6), r());
+  }
+}
 function buildPlaza(A, addLight, addLamp, addTree){
   const disc = new THREE.Mesh(new THREE.CircleGeometry(13.6, 64).rotateX(-Math.PI/2), MAT.paving); disc.position.y = 0.04; disc.receiveShadow = true;
   const inner = new THREE.Mesh(new THREE.RingGeometry(7.6, 8.4, 64).rotateX(-Math.PI/2), MAT.paving2); inner.position.y = 0.05;
   city.add(disc, inner);
-  const k = 4.4;
-  const tree = new THREE.Mesh(GEO.tree, MAT.tree); tree.scale.set(k, k*1.05, k); tree.castShadow = true; tree.receiveShadow = true; city.add(tree);
-  bigStar = new THREE.Mesh(new THREE.OctahedronGeometry(1.15), MAT.star); bigStar.position.set(0, 4.6*k*1.05 + 0.9, 0); city.add(bigStar);
-  const r = rng(77);
-  const top = 4.6*k*1.05;
-  for (let i=0;i<360;i++){
-    const t = i/360, y = 1.25*k + (top - 1.25*k - 1.2)*t, rad = (1.66*(1-t) + 0.14)*k + 0.15, a = t*Math.PI*2*8.5;
-    addLight(Math.cos(a)*rad, y, Math.sin(a)*rad, LIGHTS_MULTI[i % 5], 0.62, r());
-  }
-  for (let i=0;i<44;i++){
-    const t = 0.05 + r()*0.85, y = 1.4*k + (top - 1.4*k - 1.5)*t, rad = (1.55*(1-t) + 0.1)*k, a = r()*Math.PI*2;
-    addLight(Math.cos(a)*rad, y, Math.sin(a)*rad, LIGHTS_MULTI[Math.floor(r()*5)], 1.25, r());
+  if (!treeGone()) bigTree(0, 0, 4.4, addLight, 77, HM.stage !== 4, HM.stage === 4);   // этап 4: ёлка тёмная и без звезды
+  else {   // Хмурь утащил ёлку: пень, упавшая звезда, разбитые игрушки и порванная гирлянда
+    const r = rng(78);
+    A.cyl.push({ p:[0, 0, 0], s:[2.3, 1.0, 2.3], c:0x7a5233 }); A.cyl.push({ p:[0, 1.0, 0], s:[2.05, 0.06, 2.05], c:0xd9b98a });
+    for (const [a, l] of [[0.4, 2.6], [2.3, 2.2], [4.2, 2.4]]) A.body.push({ p:[Math.cos(a)*(1.6 + l/2), 0, Math.sin(a)*(1.6 + l/2)], s:[l, 0.45, 0.5], q:qAxis(AX_Y, -a), c:0x6e4529 });
+    const st = new THREE.Mesh(new THREE.OctahedronGeometry(1.6), MAT.star); st.position.set(-3.6, 0.95, 4.2); st.rotation.set(0.5, 0.3, 1.1); city.add(st);
+    for (let i = 0; i < 16; i++){ const a = r()*Math.PI*2, d = 3 + r()*5.5; A.sph.push({ p:[Math.cos(a)*d, 0.3, Math.sin(a)*d], s:[0.34, 0.3, 0.34], c:[0xd8352f, 0x2f6fd6, 0xe9b649, 0x2f8a4a, 0xb99ad1][i % 5] }); }
+    for (let i = 0; i < 26; i++){ const t = i/25; addLight(2.4 + t*5.5, 0.12, -1.5 + Math.sin(t*7)*1.6, LIGHTS_MULTI[i % 5], 0.45, r()); }
   }
   // подарки
   const gift = [[3.2,0,2.8,1.2,0xd9443f],[-3.6,0,2.2,1.0,0x3f7bd9],[2.4,0,-3.4,1.4,0xf0b43c],[-2.6,0,-3.0,0.9,0x45a06e],[4.4,0,-0.6,0.8,0xb35cc9]];
@@ -2995,6 +3007,7 @@ function updateTraffic(dt){
     }
     if (!c.alive) spawnCar(c, around);
     const x = c.axis === 0 ? c.s : c.line - 0.85*c.dir, z = c.axis === 0 ? c.line + 0.85*c.dir : c.s;
+    if (HM.stage === 3 && c.alive && Math.abs(x - HM.tree[0]) < 11 && Math.abs(z - HM.tree[1]) < 11) c.alive = false;   // сквозь ёлку на перекрёстке не едем
     const q = CAR_Q[c.axis === 0 ? (c.dir > 0 ? 0 : 2) : (c.dir > 0 ? 3 : 1)];
     tmpP.set(x, 0, z); tmpM.compose(tmpP, q, c.alive ? S1 : S0); traffic.mesh.setMatrixAt(i, tmpM);
     for (let k = 0; k < 4; k++){ tmpV.set(...CAR_LIGHTS[k]).applyMatrix4(tmpM); pos[(i*4 + k)*3] = tmpV.x; pos[(i*4 + k)*3 + 1] = c.alive ? tmpV.y : -50; pos[(i*4 + k)*3 + 2] = tmpV.z; }
@@ -3009,71 +3022,72 @@ function updateTraffic(dt){
 /* ============================== Хмурь, ледяной ворчун ==============================
    Меняй stage, когда выходит новый ролик:
      0 — Хмуря нет
-     1 — вечером в районе district погас свет, вверху строка «Кто это сделал?»
-     2 — от района к лесу ведут следы, на дороге брошенная гирлянда
-     3 — Хмурь стоит на краю города, за ним в лесу его ледяная пещера с горой украденных огней
-     4 — Хмурь прячется: каждый день в новом месте города (на перекрёстке), на карте его нет
-     5 — подобрел: свет вернулся, он катается на катке с гирляндой. Включится сам, когда жителей станет goal.
-   Посмотреть любой этап только у себя, не меняя сайт для всех: добавь к адресу ?hmur=3 */
-const HMUR = { stage:1, district:'Пряничный квартал', goal:60000 };
+     1 — главная ёлка пропала: на площади пень, упавшая звезда и игрушки, от площади через город в лес тянется след
+     2 — ёлку утащил Хмурь: она стоит у его пещеры в лесу, он рядом. Видно и на карте
+     3 — Хмурь перепрятал ёлку в городе: каждый день на новом перекрёстке, на карте показан только район
+     4 — ёлку нашли и вернули на площадь, но Хмурь сорвал с неё звезду и все огни: ёлка стоит тёмная,
+         а он сидит на катке с мешком огней и звездой в руке
+     5 — подобрел: звезда и огни снова на ёлке, он катается на катке с гирляндой и улыбается.
+   Этапы сами не переключаются: меняешь цифру вручную.
+   Посмотреть любой этап только у себя, не меняя сайт для всех: добавь к адресу ?hmur=2 */
+const HMUR = { stage:1, goal:60000 };
 try { const q = new URLSearchParams(location.search).get('hmur'); if (q !== null) HMUR.stage = clamp(parseInt(q, 10) || 0, 0, 5); } catch(e){}
 const HMUR_O = -9995;
-let HM = { stage:0 };
+let HM = { stage:0, dark:null };
+const treeGone = () => HM.stage >= 1 && HM.stage <= 3;
 function planHmur(){
-  HM = { stage: HMUR.stage >= 1 && HMUR.stage < 5 && total >= HMUR.goal ? 5 : HMUR.stage };
+  HM = { stage: HMUR.stage, dark:null, tree:null, pos:null };
   if (!HM.stage || !districts.size){ HM.stage = 0; return; }
-  const all = [...districts.values()];
-  const D = all.find(d => d.name === HMUR.district) || all.sort((a, b) => Math.hypot(a.cx, a.cz) - Math.hypot(b.cx, b.cz))[Math.min(1, all.length - 1)];
-  HM.D = D; HM.dark = HM.stage <= 4 ? D : null;
-  // следы идут по дороге от района наружу — мимо аэропорта и секретного здания
-  const ext = cityHalf + 4, snap = v => (Math.round(v/P - 0.5) + 0.5)*P;
-  const alongX = Math.abs(D.cx) >= Math.abs(D.cz), sg = Math.sign(alongX ? D.cx : D.cz) || 1;
-  let line = snap(alongX ? D.cz : D.cx);
-  if (alongX && sg > 0 && Math.abs(line) < 330) line = (Math.sign(line) || 1)*snap(345);
-  if (!alongX && sg < 0 && Math.abs(line) < 90) line = (Math.sign(line) || 1)*snap(100);
-  const pt = a => alongX ? [a, line] : [line, a];
-  HM.alongX = alongX; HM.sg = sg; HM.line = line; HM.a0 = alongX ? D.cx : D.cz; HM.a1 = sg*(ext + 60);
-  HM.start = pt(HM.a0); HM.edge = pt(sg*(ext + 8)); HM.cave = pt(sg*(ext + 74));
-  HM.out = alongX ? [sg, 0] : [0, sg];   // направление «из города»
-  if (HM.stage === 3){ HM.pos = [HM.edge[0] + (alongX ? 0 : 4), HM.edge[1] + (alongX ? 4 : 0)]; HM.yaw = Math.atan2(-HM.out[0], -HM.out[1]); }
-  else if (HM.stage === 4){
+  // ёлку волокли от площади к дороге, по дороге на запад и в лес — мимо аэропорта (восток) и секретного здания (север)
+  const ext = cityHalf + 4, line = P/2;
+  HM.out = [-1, 0]; HM.line = line;
+  HM.cave = [-(ext + 74), line];
+  HM.trail = [[0, 2.5], [0, line], [-(ext + 58), line]];
+  WORLD.x0 = Math.min(WORLD.x0, HM.cave[0] - 40);
+  if (HM.stage === 2){
+    HM.tree = [HM.cave[0] + 30, line + 13];
+    HM.pos = [HM.cave[0] + 25, line + 2]; HM.yaw = Math.PI/2;
+  } else if (HM.stage === 3){
     const day = Math.floor((Date.now() + 5*3600e3)/864e5), r = rng(day*977 + 13), span = Math.max(2, R - 1);
     let i = 2, j = 2;
-    for (let t = 0; t < 40; t++){ i = Math.floor(r()*(2*span + 1)) - span; j = Math.floor(r()*(2*span + 1)) - span; if (Math.max(Math.abs(i), Math.abs(j)) >= 2) break; }
-    const ox = r() < 0.5 ? 3.4 : -3.4, oz = r() < 0.5 ? 3.4 : -3.4;
-    HM.pos = [(i + 0.5)*P + ox, (j + 0.5)*P + oz]; HM.yaw = Math.atan2(-ox, -oz);
-    HM.spotD = districtAt(HM.pos[0], HM.pos[1]) || D;
+    for (let t = 0; t < 40; t++){ i = Math.floor(r()*(2*span + 1)) - span; j = Math.floor(r()*(2*span + 1)) - span; if (Math.max(Math.abs(i + 0.5), Math.abs(j + 0.5)) >= 2) break; }
+    HM.tree = [(i + 0.5)*P, (j + 0.5)*P];
+    HM.pos = [HM.tree[0] + 8, HM.tree[1] - 0.6]; HM.yaw = Math.PI/2;
+    HM.spotD = districtAt(HM.tree[0], HM.tree[1]) || districtAt(HM.tree[0] - 19, HM.tree[1] - 19) || [...districts.values()][0];
+    let rr = 60; for (const h of HM.spotD.houses) rr = Math.max(rr, Math.hypot(h.x - HM.spotD.cx, h.z - HM.spotD.cz));
+    HM.spotR = Math.min(rr, 260);
   }
-  else if (HM.stage === 5){ HM.pos = [P + 3, 1]; HM.yaw = Math.atan2(0.62, 0.48); }
+  else if (HM.stage >= 4){ HM.pos = [P + 3, 1]; HM.yaw = Math.atan2(0.62, 0.48); }
 }
-const inHmur = (x, z) => HM.stage >= 3 && Math.abs(x - HM.cave[0]) < 34 && Math.abs(z - HM.cave[1]) < 34;
+const inHmur = (x, z) => HM.stage >= 2 && Math.abs(x - HM.cave[0]) < 38 && Math.abs(z - HM.cave[1]) < 34;
 function hmurLine(){
-  const D = HM.D ? HM.D.name : '', g = fmtNum(HMUR.goal);
-  return ['', `🌑 Вечером в районе «${D}» погас свет. Кто это сделал?`, `👣 Из района «${D}» к лесу ведут странные следы…`,
-          `🥶 Это Хмурь! Наберём ${g} — он вернёт свет`, '🥶 Хмурь спрятался в городе. Найди его!', '💡 Хмурь подобрел и вернул свет!'][HM.stage];
+  const g = fmtNum(HMUR.goal);
+  return ['', '🎄 Главная ёлка пропала! От площади в лес тянется след… Кто это сделал?', `🥶 Ёлку утащил Хмурь! Она у его пещеры. Наберём ${g} — вернёт`,
+          `🔎 Хмурь перепрятал ёлку в районе «${HM.spotD ? HM.spotD.name : ''}». Найди её!`, `⭐ Ёлку вернули, но Хмурь сорвал с неё звезду и огни! Наберём ${g} — отдаст`, '🎄 Звезда и огни снова на ёлке! Хмурь подобрел'][HM.stage];
 }
-function nightLook(){ if (manualHour === null || manualHour > 6.5 && manualHour < 18.5){ manualHour = 21.5; syncStudio(); } }
+function showStump(){ closeSheets(); flyTo(new THREE.Vector3(-5, 15, 21), new THREE.Vector3(0.5, 0, 2), 2.2); }
 function showHmur(){
   closeSheets();
-  if (HM.stage === 1){ nightLook(); goToDistrict(HM.D); toast(`В районе «${HM.D.name}» не горит ни одно окно и ни одна гирлянда. Включил вечер, чтобы было видно. Время вернёшь в ⏱`); return; }
-  if (HM.stage === 2){ nightLook(); const [x, z] = HM.start, [ox, oz] = HM.out; flyTo(new THREE.Vector3(x - ox*14 + oz*10, 9, z - oz*14 + ox*10), new THREE.Vector3(x + ox*10, 0, z + oz*10), 2.2); toast('Брошенная гирлянда и следы. Они ведут из города в лес…'); return; }
-  if (HM.stage === 4){ goToDistrict(HM.spotD); toast(`Подсказка: сегодня Хмурь где-то в районе «${HM.spotD.name}», на перекрёстке. Найди его и напиши в комментах, где он стоит!`); return; }
-  const [x, z] = HM.pos, fx = Math.sin(HM.yaw), fz = Math.cos(HM.yaw);
-  flyTo(new THREE.Vector3(x + fx*16 + fz*6, 8, z + fz*16 - fx*6), new THREE.Vector3(x, 4.2, z), 2.2);
-  toast(HM.stage === 5 ? 'Хмурь: «Ладно… с гирляндами и правда веселее». Свет вернулся!' : `Хмурь: «Слишком ярко! Наберёте ${fmtNum(HMUR.goal)} — так и быть, верну ваши гирлянды»`);
+  if (HM.stage === 1){ showStump(); toast('На площади только пень, упавшая звезда и игрушки. Борозда от ёлки ведёт к дороге и дальше на запад, в лес. Кто это сделал?'); return; }
+  if (HM.stage === 3){ goToDistrict(HM.spotD); toast(`Подсказка: ёлка где-то в районе «${HM.spotD.name}», прямо на перекрёстке. Найди её и напиши в комментах, на какой улице!`); return; }
+  const [x, z] = HM.pos;
+  if (HM.stage === 2) flyTo(new THREE.Vector3(x + 34, 14, z + 22), new THREE.Vector3(x + 1, 5, z + 3), 2.2);
+  else { const fx = Math.sin(HM.yaw), fz = Math.cos(HM.yaw); flyTo(new THREE.Vector3(x + fx*16 + fz*6, 8, z + fz*16 - fx*6), new THREE.Vector3(x, 4.2, z), 2.2); }
+  toast(HM.stage === 5 ? 'Хмурь: «Ладно… с ёлкой и правда веселее». Звезда и огни снова на ёлке!' : HM.stage === 4 ? `Хмурь: «Ёлку нашли? Ну и ладно. А звезду и огни не отдам!» Наберёте ${fmtNum(HMUR.goal)} — отдаст` : `Хмурь: «Слишком ярко она светила! Наберёте ${fmtNum(HMUR.goal)} — так и быть, верну вашу ёлку»`);
 }
 function hmurClicked(){
-  if (HM.stage === 4) toast(`Нашёл! Хмурь прячется в районе «${(HM.spotD || HM.D).name}». Напиши в комментах, где он стоит 🥶`);
-  else if (HM.stage === 5) toast('Хмурь: «Ладно… с гирляндами и правда веселее»');
-  else toast(`Хмурь: «Слишком ярко! Наберёте ${fmtNum(HMUR.goal)} — так и быть, верну ваши гирлянды»`);
+  if (HM.stage === 3) toast(`Нашёл! Ёлка тут, в районе «${HM.spotD.name}». Напиши в комментах, где она стоит 🎄`);
+  else if (HM.stage === 5) toast('Хмурь: «Ладно… с ёлкой и правда веселее»');
+  else if (HM.stage === 4) toast(`Хмурь: «Звезда теперь моя! Наберёте ${fmtNum(HMUR.goal)} — так и быть, отдам»`);
+  else toast(`Хмурь: «Слишком ярко она светила! Наберёте ${fmtNum(HMUR.goal)} — так и быть, верну»`);
 }
 function showCave(){
   closeSheets(); const [x, z] = HM.cave, [ox, oz] = HM.out;
-  flyTo(new THREE.Vector3(x - ox*30 + oz*14, 14, z - oz*30 + ox*14), new THREE.Vector3(x, 3, z), 2.2);
-  toast(HM.stage === 5 ? 'Пещера Хмуря опустела: все огни вернулись в город' : 'Пещера Хмуря. Вот куда делись гирлянды!');
+  flyTo(new THREE.Vector3(x - ox*44 + oz*16, 16, z - oz*44 + ox*16 + 14), new THREE.Vector3(x + 8, 3, z + 4), 2.2);
+  toast(HM.stage === 5 ? 'Пещера Хмуря опустела: ёлка вернулась на площадь' : HM.stage === 4 ? 'Пещера пуста: Хмурь сидит на катке с мешком огней и звездой с ёлки' : HM.stage === 3 ? 'Ёлки у пещеры уже нет: Хмурь перепрятал её в городе' : 'Пещера Хмуря. Вот куда утащили ёлку!');
 }
 // сам Хмурь: ~9 метров, ледяная голова, серый драный тулуп, вязаная шапка набок; нос-сосулька; лицом к +z
-function emitHmur(A, gar, x, z, yaw, good){
+function emitHmur(A, gar, x, z, yaw, good, star){
   const yq = qAxis(AX_Y, yaw), cs = Math.cos(yaw), sn = Math.sin(yaw), coat = 0x7d8494, ice = 0xd4ecf8, ink = 0x16213a;
   const put = (list, dx, y, dz, sc, c, ql) => list.push({ p:[x + dx*cs + dz*sn, y, z - dx*sn + dz*cs], s:sc, c, q: ql ? yq.clone().multiply(ql) : yq, o:HMUR_O });
   const rz = a => qAxis(AX_Z, a), rx = a => qAxis(AX_X, a);
@@ -3101,6 +3115,10 @@ function emitHmur(A, gar, x, z, yaw, good){
   if (!good){
     put(A.sph, -1.35, 4.7, -0.95, [1.2, 1.4, 1.05], 0x8a6a45);                    // мешок с украденными огнями
     for (let k = 0; k < 9; k++){ const a = k/9*Math.PI*2; lp(-1.35 + Math.cos(a)*0.55, 6.0 + (k % 3)*0.12, -0.95 + Math.sin(a)*0.5, LIGHTS_MULTI[k % 5], 0.55); }
+    if (star){   // звезда, сорванная с ёлки: у него в руке и крутится, как на ёлке
+      bigStar = new THREE.Mesh(new THREE.OctahedronGeometry(1.0), MAT.star);
+      bigStar.position.set(x + 2.0*cs + 0.7*sn, 3.5, z - 2.0*sn + 0.7*cs); city.add(bigStar);
+    }
   } else for (let k = 0; k < 36; k++){ const a = k/36*Math.PI*2; lp(Math.cos(a)*2.1, 2.9 + Math.sin(a*3)*0.25, Math.sin(a)*2.0, LIGHTS_MULTI[k % 5], 0.5); }
   // невидимая «рамка» для клика по всему Хмурю
   const pick = new THREE.InstancedMesh(GEO.box, new THREE.MeshBasicMaterial({ visible:false }), 1);
@@ -3109,38 +3127,46 @@ function emitHmur(A, gar, x, z, yaw, good){
 }
 function buildHmur(A, gar, addLight, addTree){
   if (!HM.stage) return;
-  const [ox, oz] = HM.out, r = rng(9551);
-  // следы и брошенная гирлянда — пока свет не вернулся
-  if (HM.stage >= 2 && HM.stage <= 4){
-    const a0 = HM.a0, a1 = HM.a1, n = Math.floor(Math.abs(a1 - a0)/1.7);
-    for (let k = 0; k < n; k++){
-      const a = a0 + (a1 - a0)*k/n, side = k % 2 ? 0.38 : -0.38;
-      const x = HM.alongX ? a : HM.line + side, z = HM.alongX ? HM.line + side : a;
-      A.body.push({ p:[x, 0.045, z], s: HM.alongX ? [0.62, 0.02, 0.34] : [0.34, 0.02, 0.62], c:0x9fb6d6 });
+  const r = rng(9551), [ox, oz] = HM.out;
+  // след: борозда от ёлки, следы Хмуря по бокам и потерянные игрушки — пока ёлку не нашли
+  if (HM.stage <= 2){
+    const T = HM.trail;
+    for (let s = 0; s + 1 < T.length; s++){
+      const [x0, z0] = T[s], [x1, z1] = T[s + 1], L = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0)/L, uz = (z1 - z0)/L, alongX = Math.abs(ux) > 0.5;
+      for (let d = 0; d < L; d += 8){ const e = Math.min(L, d + 8), m = (d + e)/2;
+        A.body.push({ p:[x0 + ux*m, 0.04, z0 + uz*m], s: alongX ? [e - d, 0.02, 1.7] : [1.7, 0.02, e - d], c:0x8fa8cc }); }
+      const n = Math.floor(L/1.7);
+      for (let k = 0; k < n; k++){
+        const m = L*k/n, side = k % 2 ? 1.5 : -1.5, x = x0 + ux*m - uz*side, z = z0 + uz*m + ux*side;
+        A.body.push({ p:[x, 0.045, z], s: alongX ? [0.62, 0.02, 0.34] : [0.34, 0.02, 0.62], c:0x9fb6d6 });
+      }
+      for (let d = 14; d < L; d += 22 + r()*14){
+        const w = (r() < 0.5 ? -1 : 1)*(0.4 + r()*0.6);
+        A.sph.push({ p:[x0 + ux*d - uz*w, 0.32, z0 + uz*d + ux*w], s:[0.32, 0.32, 0.32], c:[0xd8352f, 0x2f6fd6, 0xe9b649, 0xb99ad1][Math.floor(r()*4)] });
+      }
     }
-    const [sx, sz] = HM.start;
-    for (let k = 0; k < 18; k++){ const t = k/17, w = Math.sin(t*9)*1.4; addLight(sx + ox*t*9 + oz*w, 0.12, sz + oz*t*9 + ox*w, LIGHTS_MULTI[k % 5], 0.45); }
   }
-  // ледяная пещера в лесу: гора льда, тёмный вход, сосульки, табличка и куча украденных огней
-  if (HM.stage >= 3){
+  // ледяная пещера в лесу: гора льда, тёмный вход, сосульки, табличка и куча огней, снятых с ёлки
+  if (HM.stage >= 2){
     const [cx, cz] = HM.cave, back = (d) => [cx + ox*d, cz + oz*d];
     const b6 = back(6); A.sph.push({ p:[b6[0], 0, b6[1]], s:[16, 11, 14], c:0xcfe9f7 });
     A.sph.push({ p:[cx + oz*14 + ox*10, 0, cz + ox*14 + oz*10], s:[9, 7, 8], c:0xbfe0f2 });
-    // вход: тёмная арка на склоне, над ней ледяной козырёк с сосульками
     const front = 6 - 16, ent = back(front + 0.4), lint = back(front - 0.6);
-    A.sph.push({ p:[ent[0], 0, ent[1]], s: HM.alongX ? [2.4, 6.2, 5.2] : [5.2, 6.2, 2.4], c:0x162036 });
-    A.sph.push({ p:[lint[0], 6.0, lint[1]], s: HM.alongX ? [2.2, 1.3, 6.6] : [6.6, 1.3, 2.2], c:0xd8eefa });
+    A.sph.push({ p:[ent[0], 0, ent[1]], s:[2.4, 6.2, 5.2], c:0x162036 });
+    A.sph.push({ p:[lint[0], 6.0, lint[1]], s:[2.2, 1.3, 6.6], c:0xd8eefa });
     for (let k = -4; k <= 4; k++){ const e = back(front - 1.4); A.cone.push({ p:[e[0] + oz*k*1.25, 5.4, e[1] + ox*k*1.25], s:[0.3, 1.0 + (k % 2 ? 0.7 : 0), 0.3], q:qAxis(AX_X, Math.PI), c:0xeaf7ff }); }
     const sg = lmSign('ПЕЩЕРА ХМУРЯ', '#162036', '#cfe9f7', 9, 1.5), sp = back(-17);
     sg.position.set(sp[0] + oz*7, 2.4, sp[1] + ox*7); sg.rotation.y = Math.atan2(-ox, -oz); lmDetail(sg, cx, cz);
     A.pole.push({ p:[sp[0] + oz*7, 0, sp[1] + ox*7], s:[0.6, 2.4, 0.6] });
-    if (HM.stage <= 4) for (let k = 0; k < 70; k++){
+    if (HM.stage <= 3) for (let k = 0; k < 70; k++){
       const a = r()*Math.PI*2, d = Math.sqrt(r())*2.6, h = (1 - d/2.6)*1.6*r(), e = back(-14.5);
       addLight(e[0] + Math.cos(a)*d, 0.2 + h, e[1] + Math.sin(a)*d, LIGHTS_MULTI[k % 5], 0.5);
     }
-    for (let k = 0; k < 14; k++){ const a = r()*Math.PI*2, d = 22 + r()*10; addTree(cx + Math.cos(a)*d, cz + Math.sin(a)*d, 1 + r()*0.6); }
+    for (let k = 0; k < 16; k++){ const a = r()*Math.PI*2, d = 30 + r()*10; addTree(cx + Math.cos(a)*d, cz + Math.sin(a)*d, 1 + r()*0.6); }
   }
-  if (HM.pos) emitHmur(A, gar, HM.pos[0], HM.pos[1], HM.yaw, HM.stage === 5);
+  // украденная ёлка: у пещеры (этап 2) или на перекрёстке в городе (этап 3)
+  if (HM.tree) bigTree(HM.tree[0], HM.tree[1], HM.stage === 2 ? 3.4 : 2.3, addLight, 78, HM.stage === 2);
+  if (HM.pos) emitHmur(A, gar, HM.pos[0], HM.pos[1], HM.yaw, HM.stage === 5, HM.stage === 4);
 }
 
 /* ============================== аэропорт и секретное здание ==============================
@@ -4002,23 +4028,23 @@ function placeRow(icon, title, sub, onClick){
 const PLACE_KINDS = [['school','🏫','Школы'], ['hospital','🏥','Больницы'], ['university','🎓','Университеты'], ['mall','🛍️','ТЦ'], ['district','📍','Районы']];
 const KIND_WORDS = { school:'школа школы школу шк', hospital:'больница больницы больницу поликлиника', university:'университет университеты универ вуз институт',
   mall:'тц торговый центр магазин молл', district:'район районы', airport:'аэропорт самолет самолеты аэро', secret:'секрет секретное здание тайна санта клаус дед мороз подарок',
-  hall:'мэрия мэр администрация', hmur:'хмурь хмуря ворчун пещера следы свет гирлянды', rink:'каток коньки лед', park:'парк колесо обозрения ярмарка горка', tree:'елка центр площадь', site:'стройка строится' };
+  hall:'мэрия мэр администрация', hmur:'хмурь хмуря ворчун пещера следы след елка украл пропала где найди', rink:'каток коньки лед', park:'парк колесо обозрения ярмарка горка', tree:'елка центр площадь', site:'стройка строится' };
 const PLACE_ALIASES = Object.values(KIND_WORDS).join(' ').split(' ');
 const pnorm = q => q.toLowerCase().replace(/ё/g, 'е').replace(/№/g, ' ').replace(/(\d)([^\d\s])|([^\d\s])(\d)/g, '$1$3 $2$4').replace(/[«»"'.,()\-—:!?]/g, ' ').trim();
 let PLACES = [], placeCat = 'all', placeShown = 60;
 function collectPlaces(){
   const out = [], add = p => { p.words = pnorm([p.name, p.sub || '', KIND_WORDS[p.kind] || '', p.extra || ''].join(' ')).split(/\s+/); out.push(p); };
-  add({ icon:'🎄', name:'Ёлка', sub:'центр города', kind:'tree', go:goHome });
+  add({ icon:'🎄', name:'Ёлка', sub: treeGone() ? 'пропала! на площади только пень' : HM.stage === 4 ? 'вернулась, но без звезды и огней' : 'центр города', kind:'tree', go: treeGone() ? showStump : goHome });
   add({ icon:'🏛️', name:'Мэрия', sub:'мэр ' + MAYOR, kind:'hall', go:showHall });
   add({ icon:'⛸️', name:'Каток', sub: total >= 25 ? 'у ёлки' : 'откроется на 25 жителях', kind:'rink', go:() => { closeSheets(); flyTo(new THREE.Vector3(P + 10, 30, 46), new THREE.Vector3(P, 2, 0)); } });
   add({ icon:'🎡', name:'Снежный парк', sub: total >= 100 ? 'колесо обозрения, горка, ярмарка' : 'откроется на 100 жителях', kind:'park', go:showPark });
   add({ icon:'✈️', name:AIR_NAME, sub:'за восточной окраиной · рейсы на Северный полюс', kind:'airport', go:showAirport });
   if (HM.stage){
-    const hs = HM.stage, Dn = HM.D.name;
-    add({ icon: ['', '🌑', '👣', '🥶', '🥶', '💡'][hs], name: hs <= 2 ? (hs === 1 ? 'Кто выключил свет?' : 'Странные следы') : hs === 4 ? 'Хмурь прячется' : 'Хмурь',
-          sub: hs === 1 ? `район «${Dn}» без света` : hs === 2 ? `из района «${Dn}» в лес` : hs === 3 ? `на краю города · наберём ${fmtNum(HMUR.goal)} — вернёт свет` : hs === 4 ? 'каждый день в новом месте — найди его!' : 'подобрел и катается на катке',
-          kind:'hmur', secret: hs < 5, go:showHmur });
-    if (hs >= 3) add({ icon:'🧊', name:'Пещера Хмуря', sub: hs === 5 ? 'опустела — свет вернулся' : 'там украденные гирлянды', kind:'hmur', go:showCave });
+    const hs = HM.stage;
+    add({ icon: ['', '👣', '🥶', '🔎', '⭐', '🥶'][hs], name: hs === 1 ? 'Кто украл ёлку?' : hs === 3 ? 'Где ёлка?' : 'Хмурь',
+          sub: hs === 1 ? 'след от площади ведёт в лес' : hs === 2 ? `утащил ёлку к пещере · наберём ${fmtNum(HMUR.goal)} — вернёт` : hs === 3 ? `спрятана в районе «${HM.spotD.name}» — найди!` : hs === 4 ? `сорвал звезду и огни с ёлки, сидит на катке · наберём ${fmtNum(HMUR.goal)} — отдаст` : 'подобрел и катается на катке',
+          kind:'hmur', secret: hs < 4, go:showHmur });
+    if (hs >= 2) add({ icon:'🧊', name:'Пещера Хмуря', sub: hs >= 4 ? 'опустела — ёлка вернулась' : 'туда утащили ёлку', kind:'hmur', go:showCave });
   }
   if (SANTA.open) add({ icon:'🎅', name:SECRET.openName, sub:'Северный полюс, за северной окраиной', kind:'secret', go:showSanta });
   else add({ icon:'🎁', name:SECRET.name, sub:`откроется на ${fmtNum(SECRET.at)} · ещё ${fmtNum(SECRET.at - total)}`, kind:'secret', secret:true, go:showSanta });
@@ -4132,13 +4158,34 @@ function drawMap(){
   const X = x => ox + x*sc, Z = z => oz + z*sc;
   // места
   const icon = (e, x, z, size) => { g.font = `${size*dpr}px system-ui, "Apple Color Emoji", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, X(x), Z(z)); };
-  const isz = clamp(6 + MAP.zoom*3.2, 9, 22);
-  icon('🎄', 0, 0, isz + 3); icon('🏛️', -P, 0, isz);
+  const isz = clamp(6 + MAP.zoom*3.2, 9, 22), hsz = Math.max(isz + 5, 19);   // значки Хмуря крупнее: их ищут
+  const iconPx = (e, x, z, size, dx, dy) => { g.font = `${size*dpr}px system-ui, "Apple Color Emoji", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, X(x) + dx*dpr, Z(z) + dy*dpr); };
+  // Хмурь: след от площади, пустое место вместо ёлки, где ёлка сейчас
+  if (HM.stage === 1 || HM.stage === 2){
+    g.save(); g.lineJoin = g.lineCap = 'round';
+    g.beginPath(); HM.trail.forEach(([x, z], i) => i ? g.lineTo(X(x), Z(z)) : g.moveTo(X(x), Z(z)));
+    if (HM.stage === 2) g.lineTo(X(HM.cave[0] + 14), Z(HM.cave[1]));
+    g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 6*dpr; g.stroke();
+    g.setLineDash([7*dpr, 6*dpr]); g.strokeStyle = '#d8352f'; g.lineWidth = 3*dpr; g.stroke(); g.restore();
+  }
+  if (HM.stage === 3){
+    const D = HM.spotD; g.save(); g.setLineDash([8*dpr, 6*dpr]); g.lineWidth = 3*dpr; g.strokeStyle = '#d8352f'; g.fillStyle = 'rgba(216,53,47,.12)';
+    g.beginPath(); g.arc(X(D.cx), Z(D.cz), HM.spotR*sc, 0, 7); g.fill(); g.stroke(); g.restore();
+    iconPx('🎄', D.cx, D.cz, hsz, 0, 0); iconPx('❓', D.cx, D.cz, hsz*0.7, hsz*0.75, -hsz*0.5);
+  }
+  if (treeGone()){
+    g.save(); g.globalAlpha = 0.35; icon('🎄', 0, 0, isz + 3); g.restore();
+    g.save(); g.strokeStyle = '#d8352f'; g.lineWidth = 3.2*dpr; g.lineCap = 'round'; const q = (isz*0.42)*dpr;
+    g.beginPath(); g.moveTo(X(0) - q, Z(0) - q); g.lineTo(X(0) + q, Z(0) + q); g.moveTo(X(0) + q, Z(0) - q); g.lineTo(X(0) - q, Z(0) + q); g.stroke(); g.restore();
+  } else icon('🎄', 0, 0, isz + 3);
+  if (HM.stage === 1) iconPx('❓', HM.trail[2][0], HM.trail[2][1], hsz, 0, 0);
+  if (HM.stage === 2){ iconPx('🎄', HM.cave[0], HM.cave[1], hsz, hsz*0.85, -hsz*0.35); iconPx('🥶', HM.cave[0], HM.cave[1], hsz, hsz*0.85, hsz*0.65); }
+  icon('🏛️', -P, 0, isz);
   if (total >= 25) icon('⛸️', P, 0, isz);
   if (total >= 100) icon('🎡', 0, P, isz);
   icon('✈️', AIR.x0 + 70, 0, isz + 4); icon(SANTA.open ? '🎅' : '🎁', SANTA.x, SANTA.z, isz + 4);
-  if (HM.stage >= 3) icon('🧊', HM.cave[0], HM.cave[1], isz + 2);
-  if (HM.pos && HM.stage !== 4) icon('🥶', HM.pos[0], HM.pos[1], isz + 4);
+  if (HM.stage >= 2) iconPx('🧊', HM.cave[0], HM.cave[1], HM.stage === 2 ? hsz : isz + 2, 0, 0);
+  if (HM.stage >= 4) icon(HM.stage === 4 ? '⭐' : '🥶', HM.pos[0], HM.pos[1], isz + 4);
   const EM = { school:'🏫', hospital:'🏥', university:'🎓', mall:'🛍️' };
   for (const L of landmarks) if ((L.open && MAP.zoom > 1.4) || MAP.zoom > 2.4) icon(L.open ? EM[L.kind] || '📍' : '🏗️', L.bx*P, L.bz*P, isz);
   // названия районов: крупные первыми, без наложений
@@ -4200,9 +4247,11 @@ function flyToPoint(x, z){
     const had = MAP.ptrs.has(e.pointerId); MAP.ptrs.delete(e.pointerId);
     if (had && e.type === 'pointerup' && !MAP.ptrs.size && MAP.moved < 8){
       const w = mapWorld(e.clientX, e.clientY), T = mapXf(), near = 22*T.dpr/T.sc;   // попал рядом со значком — летим к самому месту
-      const spots = [[0, 0, goHome], [-P, 0, showHall], [AIR.x0 + 70, 0, showAirport], [SANTA.x, SANTA.z, showSanta]];
-      if (HM.stage >= 3) spots.push([HM.cave[0], HM.cave[1], showCave]);
-      if (HM.pos && HM.stage !== 4) spots.push([HM.pos[0], HM.pos[1], showHmur]);
+      const spots = [[0, 0, treeGone() ? showStump : goHome], [-P, 0, showHall], [AIR.x0 + 70, 0, showAirport], [SANTA.x, SANTA.z, showSanta]];
+      if (HM.stage >= 2) spots.push([HM.cave[0], HM.cave[1], showCave]);
+      if (HM.pos && HM.stage !== 3) spots.push([HM.pos[0], HM.pos[1], showHmur]);
+      if (HM.stage === 1) spots.push([HM.trail[2][0], HM.trail[2][1], showHmur]);
+      if (HM.stage === 3) spots.push([HM.spotD.cx, HM.spotD.cz, showHmur]);
       if (total >= 100) spots.push([0, P, showPark]);
       if (MAP.zoom > 1.4) for (const L of landmarks) if (L.open || MAP.zoom > 2.4) spots.push([L.bx*P, L.bz*P, () => goToPlace(L)]);
       let best = null, bd = near; for (const sp of spots){ const d = Math.hypot(sp[0] - w.x, sp[1] - w.z); if (d < bd){ bd = d; best = sp; } }
