@@ -318,6 +318,8 @@ body.cinema .distpill,body.sheet-open .distpill,body.sheet-open .distpill.on,bod
 
 <div class="loading" id="loading"><h2>Снежный город</h2><p id="loadingTxt">Зажигаем огни…</p></div>
 
+<script>/* список жителей начинает качаться сразу, пока грузятся скрипты и шрифты */
+if (location.hash !== '#draft') window.cityData = fetch('followers.json', { cache:'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
@@ -694,6 +696,9 @@ const GEO = {
   ]),
   hut: hutGeo(),
   car: carGeo(),
+  // рамка таблички (щит и две стойки) одним куском: один вызов отрисовки вместо трёх
+  signFrame: THREE.BufferGeometryUtils.mergeBufferGeometries([new THREE.BoxGeometry(6.6, 3.0, 0.22).translate(0, 3.6, -0.13),
+    new THREE.BoxGeometry(0.28, 3.6, 0.28).translate(-2.6, 1.8, -0.2), new THREE.BoxGeometry(0.28, 3.6, 0.28).translate(2.6, 1.8, -0.2)]),
 };
 for (const g of Object.values(GEO)) if (!g.boundingBox) g.computeBoundingBox();
 function radialTex(inner, outer){
@@ -848,11 +853,8 @@ function makeSign(title, sub, pos, rotY){
     if (sub){ x.fillStyle = '#3a3550'; fitText(x, sub, w-70, 32, 800, 'Manrope, Arial, sans-serif'); x.fillText(sub, w/2, 166); }
   });
   board.position.y = 3.6;
-  const back = new THREE.Mesh(new THREE.BoxGeometry(6.6, 3.0, 0.22), MAT.wood); back.position.set(0, 3.6, -0.13);
-  const p1 = new THREE.Mesh(GEO.box, MAT.wood); p1.scale.set(0.28, 3.6, 0.28); p1.position.set(-2.6, 0, -0.2);
-  const p2 = p1.clone(); p2.position.x = 2.6;
-  [back,p1,p2].forEach(o => o.castShadow = true);
-  g.add(board, back, p1, p2); g.position.copy(pos); g.rotation.y = rotY; return g;
+  const frame = new THREE.Mesh(GEO.signFrame, MAT.wood); frame.castShadow = true;
+  g.add(board, frame); g.position.copy(pos); g.rotation.y = rotY; return g;
 }
 
 /* ============================== сборка города ============================== */
@@ -874,6 +876,11 @@ function geoView(geo, items){
   g.userData.view = true;
   return g;
 }
+// у «вида» граница задана в координатах города, а three.js при клике ждёт границу самой фигуры — из-за этого
+// клик по дому издалека срабатывал только возле центра города. На время проверки клика подставляем исходную фигуру
+function pickRaycast(rc, hits){ const g = this.geometry; this.geometry = this.userData.base; try { THREE.InstancedMesh.prototype.raycast.call(this, rc, hits); } finally { this.geometry = g; } }
+// «вид» освобождаем, не трогая общие буферы фигуры: иначе за долгую прогулку копятся тысячи забытых записей на видеокарте
+function freeView(g){ if (g.userData.view){ g.attributes = {}; g.index = null; g.dispose(); } }
 function instanced(geo, mat, items, opts = {}, parent = city){
   if (!items.length) return null;
   const m = new THREE.InstancedMesh(geoView(geo, items), mat, items.length);
@@ -884,8 +891,8 @@ function instanced(geo, mat, items, opts = {}, parent = city){
   });
   m.instanceMatrix.needsUpdate = true;
   if (m.instanceColor) m.instanceColor.needsUpdate = true;
-  m.castShadow = !!opts.cast; m.receiveShadow = !!opts.receive;
-  if (opts.pick){ m.userData.owners = items.map(i => i.o); pickMeshes.push(m); }
+  m.castShadow = !!opts.cast; m.receiveShadow = !!opts.receive; m.matrixAutoUpdate = false;
+  if (opts.pick){ m.userData.owners = items.map(i => i.o); m.userData.base = geo; m.raycast = pickRaycast; pickMeshes.push(m); }
   parent.add(m); return m;
 }
 function pointsFrom(arr, mat, attrs, parent = city){
@@ -894,7 +901,7 @@ function pointsFrom(arr, mat, attrs, parent = city){
   g.setAttribute('position', new THREE.Float32BufferAttribute(arr.pos, 3));
   for (const [k, size] of attrs) g.setAttribute(k, new THREE.Float32BufferAttribute(arr[k], size));
   g.computeBoundingSphere(); g.boundingSphere.radius += 2;
-  const p = new THREE.Points(g, mat); parent.add(p); return p;
+  const p = new THREE.Points(g, mat); p.matrixAutoUpdate = false; parent.add(p); return p;
 }
 
 /* ---------- участки: дальние рисуются крупно, ближние — со всеми деталями ---------- */
@@ -905,11 +912,15 @@ const TREE_D = isCoarse ? 130 : 290;   // ближе — подробные ёл
 let FOG_END = 1500, LO_D = 1000;   // LO_D: простые ёлки дальше этого от точки, куда смотрим, уже тонут в дымке
 const DETAIL_CHUNK = 5*P, FAR_CHUNK = 10*P;
 let chunkList = [], chunkMap = new Map(), pickMeshes = [];
+// three.js каждый кадр пересчитывает положение всех объектов сцены, даже скрытых. Участки стоят на месте,
+// поэтому сами не пересчитываются, а скрытые участки вместе со всем содержимым пропускаются целиком
+function skipHidden(force){ if (this.visible) THREE.Object3D.prototype.updateMatrixWorld.call(this, force); }
 function chunkGroup(tier, size, x, z, owner){
   const cx = Math.floor(x/size), cz = Math.floor(z/size), key = tier + '|' + size + '|' + cx + ',' + cz + (owner ? '|' + owner.key : '');
   let c = chunkMap.get(key);
   if (!c){
     c = { key, tier, owner, group: new THREE.Group(), center: new THREE.Vector3((cx+0.5)*size, 0, (cz+0.5)*size), radius: size*0.72 + 12 };
+    c.group.matrixAutoUpdate = false; c.group.updateMatrixWorld = skipHidden;
     chunkMap.set(key, c); chunkList.push(c); city.add(c.group);
     if (owner) owner.chunks.push(c);
   }
@@ -976,6 +987,9 @@ function districtName(key){
   return DISTRICT_NAMES[i % DISTRICT_NAMES.length] + (k ? ' ' + (k + 1) : '');
 }
 let districts = new Map();
+// районы — это названия, карта и подписи. А подробно город строится небольшими квадратами («секторами», 10×10 кварталов):
+// район на окраине — это полоса в несколько километров, и строить её целиком ради того, что видно рядом с камерой, слишком долго
+let sectors = new Map();
 const DIST_IN = ULTRA_D + 90, DIST_OUT = ULTRA_D + 340;
 function districtAt(x, z){ return districts.get(districtKey(Math.round(x/P), Math.round(z/P))); }
 function districtTree(J){ const r = J.r; return (x, z, sc) => J.trees.push({ p:[x,0,z], s:[sc, sc*(0.9 + r()*0.25), sc], q:new THREE.Quaternion().setFromAxisAngle(AX_Y, r()*6.28), c:[0.9 + r()*0.15, 0.9 + r()*0.15, 0.9 + r()*0.15] }); }
@@ -997,12 +1011,14 @@ function stepDistrict(D, budget){
       if (performance.now() - t0 > budget) return false;
     }
   } finally { DIRECT = null; }
-  const HF = J.HF;
-  chunked(GEO.box, MAT.body, HF.body, { cast:true, receive:true, pick:true }, 'hfar', D);
-  chunked(GEO.prism, MAT.roof, HF.roof.concat(tinted(HF.snow, SNOW_C)), { cast:true, receive:true, pick:true }, 'hfar', D);
-  for (const [k, geo] of [['cyl', GEO.ucyl], ['cone', GEO.ucone], ['sph', GEO.usph], ['frus', GEO.ufrus]]) chunked(geo, MAT.body, HF[k], { cast:true }, 'hfar', D);
-  chunked(GEO.tree, MAT.tree, J.trees, { cast:true, receive:true }, 'tree', D);
-  chunked(GEO.treeLo, MAT.tree, J.trees, {}, 'lo', D);
+  // всё, что относится к сектору, кладём в его собственный участок, не разрезая по сетке: так меньше вызовов отрисовки
+  const HF = J.HF, x0 = D.houses[0].x, z0 = D.houses[0].z;
+  const own = (geo, mat, items, opts, tier) => { if (items.length) instanced(geo, mat, items, opts, chunkGroup(tier, FAR_CHUNK, x0, z0, D)); };
+  own(GEO.box, MAT.body, HF.body, { cast:true, receive:true, pick:true }, 'hfar');
+  own(GEO.prism, MAT.roof, HF.roof.concat(tinted(HF.snow, SNOW_C)), { cast:true, receive:true, pick:true }, 'hfar');
+  for (const [k, geo] of [['cyl', GEO.ucyl], ['cone', GEO.ucone], ['sph', GEO.usph], ['frus', GEO.ufrus]]) own(geo, MAT.body, HF[k], { cast:true }, 'hfar');
+  own(GEO.tree, MAT.tree, J.trees, { cast:true, receive:true }, 'tree');
+  own(GEO.treeLo, MAT.tree, J.trees, {}, 'lo');
   city.add(J.direct); D.direct = J.direct;
   D.job = null; D.built = true; updateChunks();
   return true;
@@ -1011,7 +1027,7 @@ function dropDistrict(D){
   D.chunks = D.chunks.filter(c => {
     if (c.tier === 'ultra') return true;
     city.remove(c.group); chunkMap.delete(c.key); const i = chunkList.indexOf(c); if (i >= 0) chunkList.splice(i, 1);
-    c.group.traverse(n => { if (n.isInstancedMesh){ const k = pickMeshes.indexOf(n); if (k >= 0) pickMeshes.splice(k, 1); n.dispose(); } });
+    c.group.traverse(n => { if (n.isInstancedMesh){ const k = pickMeshes.indexOf(n); if (k >= 0) pickMeshes.splice(k, 1); n.dispose(); freeView(n.geometry); } });
     return false;
   });
   if (D.direct){
@@ -1019,22 +1035,25 @@ function dropDistrict(D){
     D.direct.traverse(n => { const k = spinners.indexOf(n); if (k >= 0) spinners.splice(k, 1); });
     D.direct = null;
   }
-  shopSigns = shopSigns.filter(sg => sg.h.district !== D);
+  shopSigns = shopSigns.filter(sg => sg.h.sector !== D);
   D.built = false;
 }
-let distBusy = false;
+let distBusy = false, distPending = false;
 function updateDistricts(){
   if (distBusy) return; distBusy = true;
   try {
-    const cp = camera.position; let next = null;
-    for (const D of districts.values()){
-      let dm = 1e9; for (const c of D.chunks) if (c.tier === 'ultra') dm = Math.min(dm, cp.distanceTo(c.center) - c.radius);
-      D.dmin = dm;
-      if (D.built && dm > DIST_OUT) dropDistrict(D);
-      else if (!D.built && dm < DIST_IN && (!next || dm < next.dmin)) next = D;
+    const cp = camera.position; let next = null, best = 1e9;
+    projM.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(projM);
+    for (const S of sectors.values()){
+      const dm = cp.distanceTo(S.ultra.center) - S.ultra.radius; S.dmin = dm;
+      if (S.built){ if (dm > DIST_OUT) dropDistrict(S); continue; }
+      if (dm >= DIST_IN){ if (S.job && dm > DIST_OUT) S.job = null; continue; }   // улетели, не достроив
+      // сначала строим то, что в кадре, потом то, что за спиной
+      cellSphere.set(S.ultra.center, S.ultra.radius); const score = dm + (frustum.intersectsSphere(cellSphere) ? 0 : 500);
+      if (score < best){ best = score; next = S; }
     }
-    for (const D of districts.values()) if (D.job && D !== next && D.dmin > DIST_OUT) D.job = null;   // улетели, не достроив
-    if (next) stepDistrict(next, isCoarse ? 7 : 12);
+    distPending = !!next;
+    if (next) stepDistrict(next, isCoarse ? 5 : 9);
   } finally { distBusy = false; }
 }
 
@@ -1044,10 +1063,15 @@ function updateDistricts(){
 let detailCells = new Map(), detailBuilt = [];
 const DETAIL_IN = GLOW_D + 20, DETAIL_OUT = GLOW_D + 160;
 const frustum = new THREE.Frustum(), projM = new THREE.Matrix4(), cellSphere = new THREE.Sphere();
+// дома рядом с точкой берём из сетки участков, а не перебираем весь город
+function eachHouseNear(x, z, r, fn){
+  const a = Math.floor((x - r)/DETAIL_CHUNK), b = Math.floor((x + r)/DETAIL_CHUNK), c0 = Math.floor((z - r)/DETAIL_CHUNK), c1 = Math.floor((z + r)/DETAIL_CHUNK);
+  for (let cx = a; cx <= b; cx++) for (let cz = c0; cz <= c1; cz++){ const c = detailCells.get(cx + ',' + cz); if (c) for (const h of c.houses) fn(h); }
+}
 function cellOf(x, z){
   const cx = Math.floor(x/DETAIL_CHUNK), cz = Math.floor(z/DETAIL_CHUNK), key = cx + ',' + cz;
   let c = detailCells.get(key);
-  if (!c){ c = { key, center:new THREE.Vector3((cx+0.5)*DETAIL_CHUNK, 0, (cz+0.5)*DETAIL_CHUNK), radius:DETAIL_CHUNK*0.72 + 12, houses:[], blocks:[], g:null }; detailCells.set(key, c); }
+  if (!c){ c = { key, center:new THREE.Vector3((cx+0.5)*DETAIL_CHUNK, 0, (cz+0.5)*DETAIL_CHUNK), radius:DETAIL_CHUNK*0.72 + 12, houses:[], blocks:[], g:null, pre:null }; detailCells.set(key, c); }
   return c;
 }
 function newA(){ return { body:[], roof:[], snow:[], cap:[], door:[], chim:[], win:[], tree:[], bank:[], pole:[], bulb:[], pool:[], path:[],
@@ -1071,12 +1095,13 @@ function cellMesh(geo, mat, items, opts, parent, c){
     tmpM.compose(tmpP, it.q || Q0, tmpS); m.setMatrixAt(i, tmpM);
     if (it.c !== undefined){ if (Array.isArray(it.c)) tmpC.setRGB(it.c[0],it.c[1],it.c[2]); else tmpC.set(it.c); m.setColorAt(i, tmpC); }
   });
-  m.frustumCulled = false; m.receiveShadow = !!opts.receive;
+  m.frustumCulled = false; m.receiveShadow = !!opts.receive; m.matrixAutoUpdate = false;
   if (opts.pick){ m.userData.owners = items.map(i => i.o); m.userData.sphere = new THREE.Sphere(c.center, c.radius + 20); pickMeshes.push(m); }
   parent.add(m);
 }
 const noTree = () => {};
-function buildDetail(c){
+// участок собирается в два приёма (сначала считаем детали, в следующий заход создаём объекты), чтобы на телефоне не было рывка
+function emitDetail(c){
   const A = newA(), gar = { pos:[], aColor:[], aPhase:[], aSize:[] }, smk = { pos:[], aPhase:[] }, cars = [];
   const dark = HM.dark, isDark = (x, z) => dark && districtAt(x, z) === dark;   // район, где Хмурь выключил свет
   const addLamp = (x,z,h=4.6) => { A.pole.push({ p:[x,0,z], s:[1,h,1] }); if (isDark(x, z)) return; A.bulb.push({ p:[x,h+0.15,z], s:[0.34,0.34,0.34] }); A.pool.push({ p:[x,0.07,z], s:[12,1,12] }); };
@@ -1093,6 +1118,11 @@ function buildDetail(c){
     }
   }
   finally { EMIT_LAZY = false; A_boardList = null; }
+  return { A, gar, smk, cars };
+}
+function buildDetail(c, whole){
+  if (!c.pre){ c.pre = emitDetail(c); if (!whole) return false; }
+  const { A, gar, smk, cars } = c.pre; c.pre = null;
   const g = { near:new THREE.Group(), mid:new THREE.Group(), glow:new THREE.Group() };
   const [, bodyNear] = bigSplit(A.body), [, capMid] = bigSplit(A.cap);
   cellMesh(GEO.box, MAT.body, bodyNear, { receive:true, pick:true }, g.near, c);
@@ -1116,8 +1146,8 @@ function buildDetail(c){
   cellMesh(GEO.awnB, MAT.body, awnB, {}, g.near, c);
   pointsFrom(gar, garlandMat, [['aColor',3],['aPhase',1],['aSize',1]], g.glow);
   pointsFrom(smk, smokeMat, [['aPhase',1]], g.near);
-  for (const k in g) city.add(g[k]);
-  c.g = g; detailBuilt.push(c);
+  for (const k in g){ g[k].matrixAutoUpdate = false; g[k].updateMatrixWorld = skipHidden; city.add(g[k]); }
+  c.g = g; detailBuilt.push(c); return true;
 }
 function dropDetail(c){
   for (const k in c.g){
@@ -1138,11 +1168,14 @@ function updateDetail(all){
   const want = [];
   for (const c of detailCells.values()){
     if (c.g) continue; const d = cp.distanceTo(c.center) - c.radius;
-    if (d < (all ? MID_D : DETAIL_IN)) want.push([d, c]);
+    if (d < (all ? MID_D : DETAIL_IN)) want.push([d, c]); else c.pre = null;
   }
   want.sort((a, b) => a[0] - b[0]);
-  const t0 = performance.now();
-  for (const [, c] of want){ buildDetail(c); if (!all && performance.now() - t0 > (isCoarse ? 6 : 10)) break; }
+  const t0 = performance.now(), budget = isCoarse ? 5 : 9;
+  for (const [, c] of want){
+    if (!buildDetail(c, all) && performance.now() - t0 <= budget) buildDetail(c, true);
+    if (!all && performance.now() - t0 > budget) break;
+  }
   // видимость деталей: по расстоянию и в кадре ли участок
   for (const c of detailBuilt){
     const d = cp.distanceTo(c.center) - c.radius;
@@ -1156,7 +1189,7 @@ function buildCity(list){
   for (const o of [...city.children]){ city.remove(o); o.traverse(n => { if (n.geometry && !n.geometry.userData.view && !Object.values(GEO).includes(n.geometry)) n.geometry.dispose(); if (n.isInstancedMesh) n.dispose?.(); }); }
   dayLitMats.length = 0; glowMats.length = 0; spinners.length = 0;
   for (const L of lazyBoards) if (L.tex) L.tex.dispose(); lazyBoards.length = 0;
-  chunkList = []; chunkMap = new Map(); pickMeshes = []; shopSigns = []; detailCells = new Map(); detailBuilt = []; wheels = []; districts = new Map();
+  chunkList = []; chunkMap = new Map(); pickMeshes = []; shopSigns = []; detailCells = new Map(); detailBuilt = []; wheels = []; districts = new Map(); sectors = new Map(); distPending = false;
   houses = []; neighborMap = new Map();
   const active = list.filter(f => !f.left);
   total = active.length;
@@ -1222,11 +1255,15 @@ function buildCity(list){
   for (const h of houses){
     const key = districtKey(h.lot.bx, h.lot.bz);
     let D = districts.get(key);
-    if (!D){ D = { key, name:districtName(key), houses:[], chunks:[], built:false, job:null, pb:[], sx:0, sz:0 }; districts.set(key, D); }
+    if (!D){ D = { key, name:districtName(key), houses:[], sx:0, sz:0 }; districts.set(key, D); }
     D.houses.push(h); h.district = D; D.sx += h.x; D.sz += h.z;
     cellOf(h.x, h.z).houses.push(h);
+    const sk = Math.floor(h.x/FAR_CHUNK) + ',' + Math.floor(h.z/FAR_CHUNK);
+    let S = sectors.get(sk);
+    if (!S){ S = { key:sk, houses:[], chunks:[], built:false, job:null, pb:[], ultra:null, dmin:1e9 }; sectors.set(sk, S); }
+    S.houses.push(h); h.sector = S;
     const hh = Math.max(3, Math.min(h.h || 3.6, 9)), hw = h.w || 7, hd = h.d || 6;
-    D.pb.push({ p:[h.x, 0, h.z], s:[hw, hh, hd], c:h.body, o:h.idx });
+    S.pb.push({ p:[h.x, 0, h.z], s:[hw, hh, hd], c:h.body, o:h.idx });
   }
   for (const D of districts.values()){ D.cx = D.sx/D.houses.length; D.cz = D.sz/D.houses.length; }
   planHmur();
@@ -1290,9 +1327,9 @@ function buildCity(list){
   chunked(GEO.box, MAT.body, bodyNear, { receive:true, pick:true }, 'near');
   chunked(GEO.prism, MAT.roof, A.roof.concat(tinted(A.snow, SNOW_C)), { cast:true, receive:true, pick:true }, 'far');
   // дома: крупные части рядом, коробки вдали
-  for (const D of districts.values()){
-    chunked(GEO.hut, MAT.hut, D.pb, { pick:true }, 'ultra', D);
-    D.pb = null;
+  for (const S of sectors.values()){
+    instanced(GEO.hut, MAT.hut, S.pb, { pick:true }, chunkGroup('ultra', FAR_CHUNK, S.houses[0].x, S.houses[0].z, S));
+    S.ultra = S.chunks[0]; S.pb = null;
   }
   chunked(GEO.box, MAT.body, tinted(capMid, SNOW_C).concat(tinted(A.chim, CHIM_C), A.board), {}, 'mid');
   chunked(GEO.cbox, MAT.door, A.door, {}, 'mid');
@@ -1330,8 +1367,10 @@ function buildCity(list){
   buildMountains(Math.max(cityHalf*Math.SQRT2 + 40, Math.hypot(AIR.x1, 300) + 30, -SANTA.z + 90));   // город квадратный: горы ставим дальше его углов
   camera.far = Math.max(4000, cityHalf*5); camera.updateProjectionMatrix();
   controls.maxDistance = Math.min(120 + R*45, 560);
+  // камеру сразу ставим туда, откуда начнётся показ: заранее строится то, что будет в первом кадре, а не окрестности нулевой точки
+  { const v = homeView(); camera.position.copy(v.pos); controls.target.copy(v.target); controls.update(); camLook.copy(v.target); }
   resetSigns(); camera.updateMatrixWorld(); updateChunks();
-  { const cp = camera.position; for (const D of districts.values()) if (D.dmin < ULTRA_D) while (!stepDistrict(D, 1e9)); }
+  for (const S of sectors.values()) if (S.dmin < ULTRA_D) while (!stepDistrict(S, 1e9));
   resetShopSigns(); updateChunks(); updateDetail(true);
 }
 function segs(a, b, gaps, hw){
@@ -3586,7 +3625,7 @@ function placeSign(s, h){
 function updateSigns(){
   const cp = camera.position, LIM = 75*75;
   const near = [];
-  for (const h of houses){ if (h.noFacadeSign) continue; const dx = h.x-cp.x, dz = h.z-cp.z, dy = h.h - cp.y; const d2 = dx*dx+dz*dz+dy*dy; if (d2 < LIM) near.push([d2,h]); }
+  eachHouseNear(cp.x, cp.z, 75, h => { if (h.noFacadeSign) return; const dx = h.x-cp.x, dz = h.z-cp.z, dy = h.h - cp.y; const d2 = dx*dx+dz*dz+dy*dy; if (d2 < LIM) near.push([d2,h]); });
   near.sort((a,b) => a[0]-b[0]);
   const want = new Set(near.slice(0, SIGN_POOL).map(v => v[1]));
   const free = [];
@@ -3611,7 +3650,8 @@ function pickLabels(){
   const cp = camera.position, camD = camera.position.distanceTo(controls.target);
   const LD = clamp(camD*1.55, 45, 150);
   const cand = [];
-  for (const h of houses){ const dx = h.x-cp.x, dz = h.z-cp.z, dy = h.top-cp.y; const d = Math.sqrt(dx*dx+dy*dy+dz*dz); if (d < LD || h === selected) cand.push([h === selected ? -1 : d, h]); }
+  eachHouseNear(cp.x, cp.z, LD, h => { if (h === selected) return; const dx = h.x-cp.x, dz = h.z-cp.z, dy = h.top-cp.y; const d = Math.sqrt(dx*dx+dy*dy+dz*dz); if (d < LD) cand.push([d, h]); });
+  if (selected) cand.push([-1, selected]);
   cand.sort((a,b) => a[0]-b[0]);
   const rects = [], chosen = [];
   for (const [d,h] of cand){
@@ -4368,6 +4408,8 @@ function degrade(){
   if (dprCut > 0.72){ perfStep = 3; dprCut = Math.max(0.72, dprCut - 0.14); renderer.setPixelRatio(dprFor()); onResize(); }
 }
 function restorePerf(){
+  // город стал заметно легче: телефоны, которые раньше сами отключили свечение и тени, один раз пробуют полную красоту заново
+  if (store.get('city.engine') !== '2'){ store.set('city.engine', '2'); if (store.get('city.perf')) store.set('city.perf', '0'); }
   const n = hq ? 0 : clamp(parseInt(store.get('city.perf') || '0', 10) || 0, 0, 3);
   for (let i = 0; i < n; i++) degrade();
 }
@@ -4416,6 +4458,7 @@ function loop(now){
   if (renderer.shadowMap.enabled && (camLook.distanceToSquared(shadowAt) > 16 || ++shadowN >= 8)){ renderer.shadowMap.needsUpdate = true; shadowAt.copy(camLook); shadowN = 0; }
   boardFrame++; boardBudget = 2; if (frameN % 120 === 60) sweepBoards();
   if (frameN % 4 === 0) updateChunks();
+  else if (distPending && frameN % 2 === 0) updateDistricts();   // пока рядом есть недостроенное — достраиваем чаще и мелкими порциями
   if (frameN % 6 === 0) pickLabels();
   if (frameN % 15 === 0){ updateSigns(); checkDistrict(); }
   if (frameN % 4 === 2) updateShopSigns();
@@ -4439,8 +4482,9 @@ async function start(){
     try { const d = JSON.parse(localStorage.getItem('city-draft') || 'null'); const l = d && (Array.isArray(d) ? d : d.followers); if (Array.isArray(l) && l.length){ list = l; showDraftBanner(); } } catch(e){}
   }
   if (!list) try {
-    const res = await fetch('followers.json', { cache:'no-store' });
-    if (res.ok){ const j = await res.json(); list = Array.isArray(j) ? j : j.followers; }
+    let j = window.cityData ? await window.cityData : null;
+    if (!j){ const res = await fetch('followers.json', { cache:'no-store' }); if (res.ok) j = await res.json(); }
+    if (j) list = Array.isArray(j) ? j : j.followers;
   } catch(e){}
   if (!list || !list.length){ $('loadingTxt').textContent = 'Не получилось загрузить жителей. Проверь, что рядом с сайтом лежит файл followers.json.'; return; }
   loadList(list);
